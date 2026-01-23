@@ -1,66 +1,190 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+没问题，这是纯文本 Markdown 版本，你可以直接点击右上角的 **“Copy”** 按钮，然后粘贴到你的 `README.md` 文件里。
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+```markdown
+# Cloud Gallery (云网盘后端)
 
-## About Laravel
+基于 Laravel 11 构建的网盘系统后端 API。
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🛠 技术栈
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Framework**: Laravel 11.x
+- **Language**: PHP >= 8.2
+- **Database**: MySQL 8.0+
+- **Response**: `jiannei/laravel-response` (统一响应格式)
+- **Enum**: `jiannei/laravel-enum` (业务状态码与国际化)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## 🚀 快速开始 (开发指南)
 
-## Learning Laravel
+如果你刚把项目 `git clone` 下来，请按以下步骤初始化开发环境。
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 1. 安装依赖
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+```bash
+composer install
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+```
 
-## Laravel Sponsors
+### 2. 环境配置
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+复制环境变量示例文件：
 
-### Premium Partners
+```bash
+cp .env.example .env
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+```
 
-## Contributing
+打开 `.env` 文件，配置数据库和语言环境：
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```ini
+APP_NAME="Cloud Gallery"
+APP_ENV=local
+APP_DEBUG=true
+APP_URL=http://localhost
 
-## Code of Conduct
+# ⚠️ 关键：数据库配置
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=cloud_gallery  # 请确保数据库已手动创建
+DB_USERNAME=root
+DB_PASSWORD=your_password
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# ⚠️ 关键：语言配置 (本项目默认使用中文)
+APP_LOCALE=zh_CN
+APP_FALLBACK_LOCALE=zh_CN
 
-## Security Vulnerabilities
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+生成应用密钥：
 
-## License
+```bash
+php artisan key:generate
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```
+
+### 3. 数据库迁移
+
+初始化数据表结构：
+
+```bash
+php artisan migrate
+
+```
+
+### 4. 生成 IDE 提示 (可选，推荐)
+
+为了让 VS Code 等编辑器能正确提示模型字段和魔术方法：
+
+```bash
+# 生成 Facade 和 Model 提示
+php artisan ide-helper:generate
+php artisan ide-helper:models -N
+
+```
+
+### 5. 启动服务
+
+```bash
+php artisan serve
+
+```
+
+访问 `http://127.0.0.1:8000/api/files` 测试接口。
+
+---
+
+## 📝 开发规范
+
+本项目使用了 **统一响应结构** 和 **枚举管理状态码**，请严格遵守以下开发流程。
+
+### 1. 响应格式
+
+所有 API 均返回统一的 JSON 结构：
+
+```json
+{
+  "status": 200,          // HTTP 状态码
+  "code": 20000,          // 业务状态码 (Enum定义)
+  "message": "操作成功",   // 提示消息 (自动翻译)
+  "data": { ... },        // 业务数据
+  "error": {}             // 调试错误信息 (生产环境隐藏)
+}
+
+```
+
+### 2. 控制器写法 (Controller)
+
+已在基类 `App\Http\Controllers\Controller` 中封装了智能助手方法，请直接调用 `$this->success()` 或 `$this->fail()`。
+
+```php
+use App\Enums\ResponseCodeEnum;
+
+// ✅ 成功返回 (自动使用 Enum::OK 对应的 "操作成功")
+return $this->success($data);
+
+// ✅ 失败返回 (使用枚举，自动翻译错误信息)
+return $this->fail(ResponseCodeEnum::FOLDER_ALREADY_EXISTS);
+
+```
+
+### 3. 如何新增业务状态码？
+
+如果你开发新功能需要新的错误提示，请执行 **两步走**：
+
+**第一步：定义枚举**
+修改 `app/Enums/ResponseCodeEnum.php`：
+
+```php
+case NEW_ERROR_CODE = 30004; // 定义一个新的 code
+
+```
+
+**第二步：配置翻译**
+修改 `lang/zh_CN/enums.php`：
+
+```php
+ResponseCodeEnum::NEW_ERROR_CODE->value => '这是新的错误提示文案',
+
+```
+
+---
+
+## 📂 目录结构重点
+
+```text
+app/
+├── Enums/
+│   └── ResponseCodeEnum.php  # 统一管理所有业务状态码 (需引入 EnumEnhance Trait)
+├── Http/
+│   └── Controllers/
+│       ├── Controller.php    # 封装了 success/fail 辅助方法
+│       └── FileController.php
+lang/
+└── zh_CN/
+    └── enums.php             # 状态码对应的中文翻译
+database/
+└── migrations/               # 数据库迁移文件
+
+```
+
+## 🤝 贡献与提交
+
+请使用 **约定式提交 (Conventional Commits)** 规范：
+
+* `feat`: 新功能 (feature)
+* `fix`: 修补 bug
+* `docs`: 文档 (documentation)
+* `style`: 格式 (不影响代码运行的变动)
+* `refactor`: 重构 (即不是新增功能，也不是修改 bug 的代码变动)
+* `chore`: 构建过程或辅助工具的变动
+
+示例：
+
+```bash
+git commit -m "feat(file): add folder creation logic"
+
+```
+
+```
+
+```
