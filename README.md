@@ -98,7 +98,7 @@ php artisan serve
 
 所有 API 均返回统一的 JSON 结构：
 
-```json
+``` json
 {
   "status": 200,          // HTTP 状态码
   "code": 20000,          // 业务状态码 (Enum定义)
