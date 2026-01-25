@@ -7,7 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "jiannei/laravel-enum": "4.0",
+        "jiannei/laravel-enum": "4.0.3",
         "jiannei/laravel-response": "6.0",
         "laravel/framework": "^11.31",
         "laravel/tinker": "^2.9"

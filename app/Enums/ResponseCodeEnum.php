@@ -19,4 +19,8 @@ enum ResponseCodeEnum: int
     case FOLDER_ALREADY_EXISTS = 30001;
     case FILE_TOO_LARGE = 30002;
     case INVALID_KEY = 30003;
+
+
+
+    case FILE_SAVE_ERROR = 50001;
 }

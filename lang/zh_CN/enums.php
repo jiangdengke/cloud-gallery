@@ -15,5 +15,8 @@ return [
         ResponseCodeEnum::FOLDER_ALREADY_EXISTS->value => '该目录下已存在同名文件夹',
         ResponseCodeEnum::FILE_TOO_LARGE->value => '文件大小超出限制',
         ResponseCodeEnum::INVALID_KEY->value => '访问口令(Key)无效或已过期',
+
+
+        ResponseCodeEnum::FILE_SAVE_ERROR->value => '文件保存失败',
     ],
 ];

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ccbc2de60d274b34694d123e00caae47",
+    "content-hash": "a17052bab3a98fd1c0ef9ae4d76ad045",
     "packages": [
         {
             "name": "brick/math",
@@ -1053,61 +1053,21 @@
             "time": "2025-08-22T14:27:06+00:00"
         },
         {
-            "name": "jiannei/helpers",
-            "version": "v0.2.1",
-            "dist": {
-                "type": "zip",
-                "url": "https://mirrors.tencent.com/repository/composer/jiannei/helpers/v0.2.1/jiannei-helpers-v0.2.1.zip",
-                "reference": "1fa669201e3c4f9b384ffdb5ab3ea4caabc594f3",
-                "shasum": ""
-            },
-            "type": "library",
-            "autoload": {
-                "files": [
-                    "src/helpers.php"
-                ]
-            },
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "jiannei",
-                    "email": "longjian.huang@foxmail.com"
-                }
-            ],
-            "description": "Some helper functions.",
-            "support": {
-                "issues": "https://github.com/jiannei/helpers/issues",
-                "source": "https://github.com/jiannei/helpers/tree/v0.2.1"
-            },
-            "time": "2021-06-16T03:01:10+00:00"
-        },
-        {
             "name": "jiannei/laravel-enum",
-            "version": "v4.0.0",
+            "version": "v4.0.3",
             "dist": {
                 "type": "zip",
-                "url": "https://mirrors.tencent.com/repository/composer/jiannei/laravel-enum/v4.0.0/jiannei-laravel-enum-v4.0.0.zip",
-                "reference": "26b21659e2613050931b2d35e1c3da5b0f52c147",
+                "url": "https://mirrors.tencent.com/repository/composer/jiannei/laravel-enum/v4.0.3/jiannei-laravel-enum-v4.0.3.zip",
+                "reference": "43eaf70fc7b67ac8f70218a3ffd36569e2b5473a",
                 "shasum": ""
-            },
-            "require": {
-                "ext-json": "*",
-                "jiannei/helpers": "^0.2.1"
             },
             "require-dev": {
-                "orchestra/testbench": "^8.0",
-                "pestphp/pest": "^2.23"
+                "larastan/larastan": "^2.0 || ^3.0",
+                "laravel/pint": "^1.0",
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^4.1.2"
             },
             "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Jiannei\\Enum\\Laravel\\Providers\\LaravelServiceProvider"
-                    ]
-                }
-            },
             "autoload": {
                 "psr-4": {
                     "Jiannei\\Enum\\Laravel\\": "src"
@@ -1125,9 +1085,9 @@
             "description": "A simple and easy-to-use enumeration extension package to help you manage enumerations in your project more conveniently, supporting Laravel and Lumen",
             "support": {
                 "issues": "https://github.com/jiannei/laravel-enum/issues",
-                "source": "https://github.com/jiannei/laravel-enum/tree/v4.0.0"
+                "source": "https://github.com/jiannei/laravel-enum/tree/v4.0.3"
             },
-            "time": "2024-03-13T07:00:29+00:00"
+            "time": "2025-11-02T12:42:22+00:00"
         },
         {
             "name": "jiannei/laravel-response",
