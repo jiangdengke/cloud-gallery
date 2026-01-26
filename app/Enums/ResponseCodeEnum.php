@@ -21,6 +21,7 @@ enum ResponseCodeEnum: int
     case INVALID_KEY = 30003;
     case NAME_ALREADY_EXISTS = 30004;
 
+    case MOVE_INTO_SELF_OR_CHILD = 30005;
 
     case FILE_SAVE_ERROR = 50001;
 }

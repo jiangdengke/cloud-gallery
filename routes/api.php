@@ -29,5 +29,7 @@ Route::middleware(['auth.key'])->group(function () {
         Route::get('/', [FileController::class, 'index']); // 获取列表
         Route::post('/upload', [FileController::class, 'upload']); // 文件上传
         Route::post('/rename', [FileController::class, 'rename']); // 重命名文件或文件夹
+        Route::delete('/delete', [FileController::class, 'delete']); // 删除
+        Route::post('/move', [FileController::class, 'move']); // 移动文件或文件夹
     });
 });

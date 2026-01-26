@@ -16,6 +16,10 @@ return [
         ResponseCodeEnum::FILE_TOO_LARGE->value => '文件大小超出限制',
         ResponseCodeEnum::INVALID_KEY->value => '访问口令(Key)无效或已过期',
         ResponseCodeEnum::NAME_ALREADY_EXISTS->value => '该名称已存在，请换一个名字',
+        ResponseCodeEnum::MOVE_INTO_SELF_OR_CHILD->value => '无法将文件夹移动到其自身或子文件夹中',
+
+
+
 
         ResponseCodeEnum::FILE_SAVE_ERROR->value => '文件保存失败',
     ],

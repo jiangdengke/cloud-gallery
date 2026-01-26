@@ -9,6 +9,58 @@ use App\Enums\ResponseCodeEnum;
 
 class FileController extends Controller
 {
+    /**
+     * 移动文件/文件夹
+     * POST /api/files/move
+     */
+
+    public function move(Request $request)
+    {
+        // 验证
+        $request->validate([
+            'id' => 'required|exists:files,id',
+            'parent_id' => 'nullable|exists:files,id', // 目标文件夹（null代表根目录）
+        ]);
+
+        $file = File::find($request->id);
+        $targetParentId = $request->parent_id;
+
+        // 如果目标目录和当前目录一样，什么都不做
+        if ($file->parent_id == $targetParentId) {
+            return Response::success($file);
+        }
+
+        // 逻辑检查，如果移动的是文件夹，不能移动到自己或者自己的子目录中
+        if ($file->is_folder && $targetParentId) {
+            // 不能移动到自己里面
+            if ($file->id == $targetParentId) {
+                return Response::fail('',ResponseCodeEnum::MOVE_INTO_SELF_OR_CHILD);
+            }
+
+            // 不能移动到自己子孙目录里
+            // 检查targetParentId的所有父级，看有没有等于$file->id的
+            // 循环向上找 parent，看能不能碰到 file->id
+            $parent = File::find($targetParentId);
+            while ($parent) {
+                if ($parent->id == $file->id) {
+                    return Response::fail('',ResponseCodeEnum::MOVE_INTO_SELF_OR_CHILD);
+                }
+                $parent = $parent->parent_id ? File::find($parent->parent_id) : null;
+            }
+        }
+
+        // 重名检查：目标目录下不能有同名文件
+        $exists = File::where('parent_id', $targetParentId)
+            ->where('name', $file->name)
+            ->exists();
+        if ($exists) {
+            return Response::fail('',ResponseCodeEnum::NAME_ALREADY_EXISTS);
+        }
+
+        // 执行移动
+        $file->update(['parent_id' => $targetParentId]);
+        return Response::success($file);
+    }
 
     /**
      * 彻底删除文件/文件夹
