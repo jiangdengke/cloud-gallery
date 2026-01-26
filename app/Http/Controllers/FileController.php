@@ -11,6 +11,48 @@ class FileController extends Controller
 {
 
     /**
+     * 彻底删除文件/文件夹
+     * POST /api/files/delete
+     */
+
+    public function delete(Request $request)
+    {
+        // 验证参数
+        $request->validate([
+            'ids' => 'required|array', // 必须提交 数组格式
+            'ids.*' => 'integer|exists:files,id', // 和上一行共同组成校验，上面一行要求是数组，这一行要求数组内的每个元素都是整数且在 files 表中存在
+        ]);
+        $files = File::whereIn('id', $request->ids)->get();
+
+        foreach ($files as $file) {
+            $this->deleteRecursively($file);
+        }
+        return Response::success(null);
+    }
+
+    /**
+     * 递归删除辅助函数
+     * (用于处理文件夹内部的文件清理)
+     */
+
+    private function deleteRecursively($file)
+    {
+        // 如果是文件夹，先查出来里面的子文件，逐个删掉
+        if ($file->is_folder) {
+            $childFiles = File::where('parent_id', $file->id)->get();
+            foreach ($childFiles as $child) {
+                $this->deleteRecursively($child);
+            }
+        } else {
+            // 如果是文件，删除物理文件
+            if ($file->disk_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($file->path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($file->disk_path);
+            }
+        }
+        // 删除数据库记录
+        $file->delete();
+    }
+    /**
      * 重命名文件或文件夹
      * POST /api/files/rename
      */
