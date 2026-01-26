@@ -10,6 +10,42 @@ use App\Enums\ResponseCodeEnum;
 class FileController extends Controller
 {
 
+    /**
+     * 重命名文件或文件夹
+     * POST /api/files/rename
+     */
+    public function rename(Request $request)
+    {
+        // 验证参数
+        $request->validate([
+            'id' => 'required|exists:files,id',
+            'name' => 'required|string|max:255', // 新名字
+        ]);
+
+        $file = File::find($request->id);
+        $newName = $request->name;
+
+        //如果名字没变，直接返回成功，省得查数据库
+        if ($file->name === $newName) {
+            return Response::success($file);
+        }
+
+        // 检查重名
+        $exists = File::where('parent_id', $file->parent_id)
+            ->where('name', $newName)
+            ->where('id', '!=', $file->id) // 排除自己
+            ->exists();
+
+        if($exists) {
+            return Response::fail('',ResponseCodeEnum::NAME_ALREADY_EXISTS);
+        }
+
+        // 改名
+        $file->update(['name' => $newName]);
+
+        // 返回更新后的对象
+        return Response::success($file);
+    }
 
     /**
      * 文件上传
@@ -91,7 +127,7 @@ class FileController extends Controller
                 'list' => $files,
                 'parent_id' => $parentId
             ],
-            '', // 留空，系统会自动去 lang 文件抓取 "操作成功"
+            '',
             ResponseCodeEnum::OK
         );
     }

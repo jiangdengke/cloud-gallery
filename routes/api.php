@@ -28,5 +28,6 @@ Route::middleware(['auth.key'])->group(function () {
     Route::prefix('/files')->group(function () {
         Route::get('/', [FileController::class, 'index']); // 获取列表
         Route::post('/upload', [FileController::class, 'upload']); // 文件上传
+        Route::post('/rename', [FileController::class, 'rename']); // 重命名文件或文件夹
     });
 });
