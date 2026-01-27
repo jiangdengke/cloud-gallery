@@ -2,13 +2,46 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\FileResource;
 use App\Models\File;
 use Illuminate\Http\Request;
 use Jiannei\Response\Laravel\Support\Facades\Response;
 use App\Enums\ResponseCodeEnum;
-
+use Illuminate\Support\Facades\Storage;
 class FileController extends Controller
 {
+    /**
+     * 下载文件
+     * GET /api/files/{id}/download
+     */
+
+    public function download($id)
+    {
+        $file = File::findOrFail($id);
+
+        // 检查是否为文件夹
+        if ($file->is_folder) {
+            return Response::fail('',ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED);
+        }
+        // 检查物理文件是否存在
+        if (!Storage::disk('public')->exists($file->disk_path)) {
+            return ResponseCodeEnum::FILE_SAVE_ERROR;
+        }
+        // 执行下载
+        return Storage::disk('public')->download($file->disk_path, $file->name);
+    }
+    /**
+     * 获取文件详情
+     * GET /api/files/{id}
+     */
+
+    public function detail($id)
+    {
+        // 自动查找，找不到返回404
+        $file = File::findOrFail($id);
+
+        return Response::success(FileResource::make($file));
+    }
     /**
      * 移动文件/文件夹
      * POST /api/files/move

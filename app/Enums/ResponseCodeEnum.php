@@ -22,6 +22,6 @@ enum ResponseCodeEnum: int
     case NAME_ALREADY_EXISTS = 30004;
 
     case MOVE_INTO_SELF_OR_CHILD = 30005;
-
+    case DOWNLOAD_FOLDER_NOT_SUPPORTED = 30006;
     case FILE_SAVE_ERROR = 50001;
 }
