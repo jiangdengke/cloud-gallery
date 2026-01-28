@@ -32,4 +32,8 @@ Route::middleware(['auth.key'])->group(function () {
         Route::delete('/delete', [FileController::class, 'delete']); // 删除
         Route::post('/move', [FileController::class, 'move']); // 移动文件或文件夹
     });
+
+
+
+    Route::post('/shares/create', [\App\Http\Controllers\ShareController::class, 'create']);
 });
