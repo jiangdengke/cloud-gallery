@@ -24,4 +24,11 @@ enum ResponseCodeEnum: int
     case MOVE_INTO_SELF_OR_CHILD = 30005;
     case DOWNLOAD_FOLDER_NOT_SUPPORTED = 30006;
     case FILE_SAVE_ERROR = 50001;
+
+    // 分享相关
+    case SHARE_NOT_FOUND = 30007;     // 链接不存在
+    case SHARE_EXPIRED = 30008;       // 链接已过期
+    case SHARE_PASSWORD_REQUIRED = 30009; // 需要密码
+    case SHARE_PASSWORD_ERROR = 30010;    // 密码错误
+    const FILE_NOT_FOUND_ON_DISK = 50002;
 }

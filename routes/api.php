@@ -13,7 +13,14 @@ Route::get('/ping', function () {
  */
 // 首页列表 / 进入文件夹
 Route::get('/files', [FileController::class, 'index']);
+// 公开接口 (不需要 auth.key)
+Route::prefix('shares')->group(function () {
+    // 查看信息
+    Route::get('/{token}', [\App\Http\Controllers\ShareController::class, 'detail']);
 
+    // 新增：下载文件
+    Route::get('/{token}/download', [\App\Http\Controllers\ShareController::class, 'download']);
+});
 
 /**
  * 需要key

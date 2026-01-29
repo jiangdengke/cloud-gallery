@@ -19,8 +19,14 @@ return [
         ResponseCodeEnum::MOVE_INTO_SELF_OR_CHILD->value => '无法将文件夹移动到其自身或子文件夹中',
         ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED->value => '暂不支持下载文件夹',
 
+        // 分享
+        ResponseCodeEnum::SHARE_NOT_FOUND->value => '该分享链接不存在或已被取消',
+        ResponseCodeEnum::SHARE_EXPIRED->value => '该分享已过期',
+        ResponseCodeEnum::SHARE_PASSWORD_REQUIRED->value => '请输入提取码',
+        ResponseCodeEnum::SHARE_PASSWORD_ERROR->value => '提取码错误',
 
 
+        ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK->value => '物理文件丢失，请联系管理员',
         ResponseCodeEnum::FILE_SAVE_ERROR->value => '文件保存失败',
     ],
 ];
