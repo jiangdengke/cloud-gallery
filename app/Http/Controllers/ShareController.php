@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ResponseCodeEnum;
+use App\Http\Resources\FileResource;
 use App\Models\File;
 use App\Models\FileShare;
 use Illuminate\Http\Request;
@@ -11,6 +12,55 @@ use Jiannei\Response\Laravel\Support\Facades\Response;
 use Illuminate\Support\Facades\Storage;
 class ShareController extends Controller
 {
+
+    /**
+     * 获取分享文件夹内部的文件列表
+     * GET /api/shares/{token}/files
+     */
+    public function fileList(Request $request, $token)
+    {
+        // 基础验证
+        $share = FileShare::where('token', $token)->first();
+        if (!$share) {
+            return Response::fail('', ResponseCodeEnum::SHARE_NOT_FOUND);
+        }
+        if ($share->expired_at && $share->expired_at->isPast()) {
+            return Response::fail('', ResponseCodeEnum::SHARE_EXPIRED);
+        }
+        if ($share->password && $request->password !== $share->password) {
+            return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
+
+        }
+
+        // 获取子文件
+        $file = $share->file;
+        // 如果分享的不是文件夹，那这个接口没意义
+        if (!$file->is_folder) {
+            return Response::fail('', ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED);
+        }
+        // 查询子文件
+        // 这里暂时只支持查看第一层，如果要支持点进子文件夹，还需要处理parent_id参数
+        $files = File::where('parent_id', $file->id)->get();
+
+        return Response::success(FileResource::collection($files));
+    }
+
+    /**
+     * 取消分享
+     * DELETE /api/shares/{id}
+     */
+    public function destroy($id)
+    {
+        // 查找并删除
+        // 直接根据ID删除即可
+        $deleted = FileShare::destroy($id);
+        if (!$deleted) {
+            return Response::fail('', ResponseCodeEnum::SHARE_NOT_FOUND);
+        }
+        return Response::success([], '分享已取消');
+
+    }
+
     /**
      * 查看分享内容
      * GET /api/shares/{token}

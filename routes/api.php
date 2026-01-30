@@ -11,15 +11,17 @@ Route::get('/ping', function () {
 /**
  * 不需要key
  */
+
+// 公开接口 (不需要 auth.key)
 // 首页列表 / 进入文件夹
 Route::get('/files', [FileController::class, 'index']);
-// 公开接口 (不需要 auth.key)
 Route::prefix('shares')->group(function () {
     // 查看信息
     Route::get('/{token}', [\App\Http\Controllers\ShareController::class, 'detail']);
 
     // 新增：下载文件
     Route::get('/{token}/download', [\App\Http\Controllers\ShareController::class, 'download']);
+    Route::get('/{token}/files', [\App\Http\Controllers\ShareController::class, 'fileList']); // 游客查看文件夹列表
 });
 
 /**
@@ -43,4 +45,5 @@ Route::middleware(['auth.key'])->group(function () {
 
 
     Route::post('/shares/create', [\App\Http\Controllers\ShareController::class, 'create']);
+    Route::delete('/shares/{id}', [\App\Http\Controllers\ShareController::class, 'destroy']);
 });
