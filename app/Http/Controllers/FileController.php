@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\FileListResource;
 use App\Http\Resources\FileResource;
 use App\Models\File;
 use Illuminate\Http\Request;
@@ -17,7 +18,10 @@ class FileController extends Controller
 
     public function download($id)
     {
-        $file = File::findOrFail($id);
+        $file = File::find($id);
+        if (!$file) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
+        }
 
         // 检查是否为文件夹
         if ($file->is_folder) {
@@ -25,7 +29,7 @@ class FileController extends Controller
         }
         // 检查物理文件是否存在
         if (!Storage::disk('public')->exists($file->disk_path)) {
-            return ResponseCodeEnum::FILE_SAVE_ERROR;
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
         }
         // 执行下载
         return Storage::disk('public')->download($file->disk_path, $file->name);
@@ -37,8 +41,11 @@ class FileController extends Controller
 
     public function detail($id)
     {
-        // 自动查找，找不到返回404
-        $file = File::findOrFail($id);
+        // 自动查找，找不到返回统一错误
+        $file = File::find($id);
+        if (!$file) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
+        }
 
         return Response::success(FileResource::make($file));
     }
@@ -57,6 +64,14 @@ class FileController extends Controller
 
         $file = File::find($request->id);
         $targetParentId = $request->parent_id;
+
+        // 目标目录必须是文件夹
+        if ($targetParentId) {
+            $targetParent = File::find($targetParentId);
+            if (!$targetParent || !$targetParent->is_folder) {
+                return Response::fail('', ResponseCodeEnum::PARENT_NOT_FOLDER);
+            }
+        }
 
         // 如果目标目录和当前目录一样，什么都不做
         if ($file->parent_id == $targetParentId) {
@@ -130,8 +145,8 @@ class FileController extends Controller
             }
         } else {
             // 如果是文件，删除物理文件
-            if ($file->disk_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($file->path)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($file->disk_path);
+            if ($file->disk_path && Storage::disk('public')->exists($file->disk_path)) {
+                Storage::disk('public')->delete($file->disk_path);
             }
         }
         // 删除数据库记录
@@ -186,22 +201,30 @@ class FileController extends Controller
             'parent_id' => 'nullable|exists:files,id',
         ]);
 
+        // 2. 父目录必须是文件夹
+        if ($request->parent_id) {
+            $parent = File::find($request->parent_id);
+            if (!$parent || !$parent->is_folder) {
+                return Response::fail('', ResponseCodeEnum::PARENT_NOT_FOLDER);
+            }
+        }
+
         $file = $request->file('file');
 
-        // 2. 获取文件基本信息
+        // 3. 获取文件基本信息
         $originalName = $file->getClientOriginalName();
         $size = $file->getSize();
         $mimeType = $file->getMimeType();
         $extension = $file->getClientOriginalExtension();
 
-        // 3.计算文件哈希（MD5） 后面实现秒传todo
+        // 4. 计算文件哈希（MD5） 后面实现秒传todo
         $hash = md5_file($file->getRealPath());
 
-        // 4. 秒传检测逻辑：如果数据库已有该hash，直接复制引用，不存物理文件
+        // 5. 秒传检测逻辑：如果数据库已有该hash，直接复制引用，不存物理文件
         // $existFile = File::where('hash', $hash)->first();
         // if ($existFile) { ... }
 
-        // 5. 物理存储
+        // 6. 物理存储
         // 存到 storage/app/public/uploads/2026-01-25/ 目录下
         // store() 会自动生成一个随机文件名，防止中文乱码和重名
         $path = $file->store('uploads/' . date('Y-m-d'), 'public');
@@ -210,7 +233,7 @@ class FileController extends Controller
             return Response::fail( '',ResponseCodeEnum::FILE_SAVE_ERROR);
         }
 
-        // 6. 处理文件名冲突 (如果在同一目录下有同名文件，自动重命名)
+        // 7. 处理文件名冲突 (如果在同一目录下有同名文件，自动重命名)
         // 比如：简历.pdf -> 简历(1).pdf
         $name = $originalName;
         $counter = 1;
@@ -220,7 +243,7 @@ class FileController extends Controller
             $counter++;
         }
 
-        // 7. 写入数据库
+        // 8. 写入数据库
         $newFile = File::create([
             'parent_id' => $request->parent_id,
             'name' => $name, // 最终显示的文件名
@@ -239,21 +262,34 @@ class FileController extends Controller
      */
     public function index(Request $request)
     {
-        // 1. 获取参数 parent_id
+        // 1. 验证参数 parent_id
+        $request->validate([
+            'parent_id' => 'nullable|exists:files,id',
+        ]);
+
+        // 2. 获取参数 parent_id
         $parentId = $request->input('parent_id');
 
-        // 2. 查询数据库
+        // 3. parent_id 必须是文件夹
+        if ($parentId) {
+            $parent = File::find($parentId);
+            if (!$parent || !$parent->is_folder) {
+                return Response::fail('', ResponseCodeEnum::PARENT_NOT_FOLDER);
+            }
+        }
+
+        // 4. 查询数据库
         $files = File::where('parent_id', $parentId)
             ->orderBy('is_folder', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // 3. 统一返回
+        // 5. 统一返回
         return Response::success(
-            [
+            FileListResource::make([
                 'list' => $files,
-                'parent_id' => $parentId
-            ],
+                'parent_id' => $parentId,
+            ]),
             '',
             ResponseCodeEnum::OK
         );
@@ -271,7 +307,15 @@ class FileController extends Controller
             'parent_id' => 'nullable|exists:files,id',
         ]);
 
-        // 2. 检查重名
+        // 2. 父目录必须是文件夹
+        if ($request->parent_id) {
+            $parent = File::find($request->parent_id);
+            if (!$parent || !$parent->is_folder) {
+                return Response::fail('', ResponseCodeEnum::PARENT_NOT_FOLDER);
+            }
+        }
+
+        // 3. 检查重名
         $exists = File::where('parent_id', $request->parent_id)
             ->where('is_folder', true)
             ->where('name', $request->name)
@@ -279,10 +323,10 @@ class FileController extends Controller
 
         if ($exists) {
             // 以前是: return Response::fail('文件夹已存在', 422);
-            return Response::fail(ResponseCodeEnum::FOLDER_ALREADY_EXISTS);
+            return Response::fail('', ResponseCodeEnum::FOLDER_ALREADY_EXISTS);
         }
 
-        // 3. 写入数据库
+        // 4. 写入数据库
         $folder = File::create([
             'name' => $request->name,
             'is_folder' => true,
@@ -291,7 +335,7 @@ class FileController extends Controller
             'disk_path' => null,
         ]);
 
-        // 4. 返回成功
+        // 5. 返回成功
         return Response::created($folder);
     }
 }

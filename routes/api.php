@@ -15,6 +15,8 @@ Route::get('/ping', function () {
 // 公开接口 (不需要 auth.key)
 // 首页列表 / 进入文件夹
 Route::get('/files', [FileController::class, 'index']);
+Route::get('/files/{id}', [FileController::class, 'detail']); // 文件详情
+Route::get('/files/{id}/download', [FileController::class, 'download']); // 下载文件
 Route::prefix('shares')->group(function () {
     // 查看信息
     Route::get('/{token}', [\App\Http\Controllers\ShareController::class, 'detail']);

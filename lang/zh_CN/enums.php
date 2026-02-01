@@ -18,6 +18,8 @@ return [
         ResponseCodeEnum::NAME_ALREADY_EXISTS->value => '该名称已存在，请换一个名字',
         ResponseCodeEnum::MOVE_INTO_SELF_OR_CHILD->value => '无法将文件夹移动到其自身或子文件夹中',
         ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED->value => '暂不支持下载文件夹',
+        ResponseCodeEnum::PARENT_NOT_FOLDER->value => '目标目录不是文件夹',
+        ResponseCodeEnum::FILE_NOT_FOUND->value => '文件不存在或已被删除',
 
         // 分享
         ResponseCodeEnum::SHARE_NOT_FOUND->value => '该分享链接不存在或已被取消',

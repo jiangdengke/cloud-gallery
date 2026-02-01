@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\ResponseCodeEnum;
 use App\Http\Resources\FileResource;
+use App\Http\Resources\ShareCreateResource;
+use App\Http\Resources\ShareDetailResource;
 use App\Models\File;
 use App\Models\FileShare;
 use Illuminate\Http\Request;
@@ -28,12 +30,19 @@ class ShareController extends Controller
             return Response::fail('', ResponseCodeEnum::SHARE_EXPIRED);
         }
         if ($share->password && $request->password !== $share->password) {
-            return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
+            if (!$request->filled('password')) {
+                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
+            }
+            return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
 
         }
 
         // 获取子文件
         $file = $share->file;
+        // 如果分享记录对应的文件已被删除
+        if (!$file) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
+        }
         // 如果分享的不是文件夹，那这个接口没意义
         if (!$file->is_folder) {
             return Response::fail('', ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED);
@@ -79,12 +88,14 @@ class ShareController extends Controller
         }
         // 检查密码逻辑
         if ($share->password) {
-            // 如果分享设置了密码，且用户没传 password 参数，或者传的密码不对
-            if ($request->password !== $share->password) {
+            // 如果分享设置了密码，且用户没传 password 参数
+            if (!$request->filled('password')) {
                 return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
             }
             // 如果传了但不对，提示密码错误
-            return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
+            if ($request->password !== $share->password) {
+                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
+            }
         }
         // 验证通过，增加一次浏览量
         $share->click_count++;
@@ -97,20 +108,15 @@ class ShareController extends Controller
         if (!$file) {
             return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
         }
-        // 返回数据
-        $url = null;
-        if (!$file->is_folder && $file->disk_path) {
-            $url = Storage::disk('public')->url($file->disk_path);
+        // 如果是文件，检查物理文件是否存在
+        if (!$file->is_folder && !$file->disk_path) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
         }
-        return Response::success([
-            'share_token' => $share->token,
-            'name' => $file->name,
-            'is_folder' => (bool)$file->is_folder,
-            'size' => $file->size,
-            'created_at' => $share->created_at->toDateTimeString(),
-            'expired_at' => $share->expired_at?->toDateTimeString(),
-            'url' => $url, // 如果是图片/视频，给预览链接；如果是文件夹，这个字段没用
-        ]);
+        if (!$file->is_folder && $file->disk_path && !Storage::disk('public')->exists($file->disk_path)) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
+        }
+        // 返回数据
+        return Response::success(ShareDetailResource::make($share));
     }
     /**
      * 下载分享的文件
@@ -132,11 +138,11 @@ class ShareController extends Controller
 
         // 检查密码
         if ($share->password) {
-            if ($request->password !== $share->password) {
+            if (!$request->filled('password')) {
                 // 下载接口通常是浏览器直接访问
-                if (empty($request->password)) {
-                    return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
-                }
+                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
+            }
+            if ($request->password !== $share->password) {
                 return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
             }
         }
@@ -169,13 +175,16 @@ class ShareController extends Controller
         ]);
 
         // 检查文件归属（防止恶意分享别人的文件）
-        $file = File::findOrFail($request->file_id);
+        $file = File::find($request->file_id);
+        if (!$file) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
+        }
 
         // 生成唯一的分享Token
         // 循环生成知道不重复为止
         do {
             $token = Str::random(10); // 生成10位随机字符串
-        } while (File::where('token', $token)->exists());
+        } while (FileShare::where('token', $token)->exists());
 
         // 保存到数据库
         $share = FileShare::create([
@@ -186,10 +195,6 @@ class ShareController extends Controller
         ]);
 
         // 返回分享信息
-        return Response::success([
-            'token' => $share->token,
-            'link' => url('/s/' . $share->token), // 分享链接
-            'expired_at' => $share->expired_at?->toDateTimeString(),
-        ]);
+        return Response::success(ShareCreateResource::make($share));
     }
 }
