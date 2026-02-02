@@ -51,11 +51,26 @@ jobs:
           PROJECT_PATH="/var/www/cloud-gallery"
 
           echo "🚀 开始 Docker 部署到 $PROJECT_PATH ..."
+          
+          # 确保目录存在
+          mkdir -p $PROJECT_PATH
           cd $PROJECT_PATH
 
-          # 1. 拉取最新代码 (包含 docker-compose.yml 和 PHP 代码)
+          # 1. 智能拉取代码 (自动处理首次部署)
           # 注意：.env 文件应已存在于服务器或仓库中
-          git pull origin master
+          if [ ! -d ".git" ]; then
+            echo "📂 检测到项目未初始化，开始首次克隆..."
+            git init
+            # 使用 HTTPS URL (如果是私有仓库，请确保服务器配置了凭证助手，或者改用 SSH URL)
+            git remote add origin https://github.com/jiangdengke/cloud-gallery.git
+            git fetch origin master
+            # 强制重置代码，覆盖本地冲突 (注意：这不会删除未追踪的 .env)
+            git reset --hard origin/master
+            git branch --set-upstream-to=origin/master master
+          else
+            echo "🔄 检测到已有项目，拉取最新代码..."
+            git pull origin master
+          fi
 
           # 2. 启动/重建容器
           # -d: 后台运行
