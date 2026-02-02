@@ -8,7 +8,7 @@ services:
     restart: always
     working_dir: /var/www
     ports:
-      - "80:8000" # 宿主机 80 -> 容器 8000
+      - "8000:8000" # 宿主机 8000 -> 容器 8000
     volumes:
       - ./:/var/www
     networks:
