@@ -1,0 +1,89 @@
+name: Deploy
+
+# 触发条件：仅当推送以 'v' 开头的 Tag 时触发 (例如 v1.0.0)
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Build & Deploy
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # --- 前端部分 ---
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+
+    - name: Build Frontend
+      run: |
+        cd web
+        npm install
+        npm run build
+
+    # --- 上传文件 ---
+    - name: Upload Frontend Assets
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        password: ${{ secrets.SERVER_PASSWORD }}
+        source: "web/dist/*"
+        target: "/var/www/cloud-gallery/public"
+        strip_components: 2
+
+    # --- SSH 部署 (Docker Compose) ---
+    - name: Deploy via Docker Compose
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        password: ${{ secrets.SERVER_PASSWORD }}
+        script: |
+          # ⚠️⚠️⚠️ 请修改为您服务器的实际路径 ⚠️⚠️⚠️
+          PROJECT_PATH="/var/www/cloud-gallery"
+
+          echo "🚀 开始 Docker 部署到 $PROJECT_PATH ..."
+          cd $PROJECT_PATH
+
+          # 1. 拉取最新代码 (包含 docker-compose.yml 和 PHP 代码)
+          # 注意：.env 文件应已存在于服务器或仓库中
+          git pull origin master
+
+          # 2. 启动/重建容器
+          # -d: 后台运行
+          # --build:如果有代码变动，重新构建镜像
+          docker compose up -d --build
+
+          # 3. 等待容器启动 (防止 mysql 还没准备好就 migrate)
+          echo "⏳ 等待服务启动..."
+          sleep 10
+
+          # 4. 在容器内执行维护命令
+          echo "📦 安装依赖..."
+          docker compose exec -T app composer install --no-dev --optimize-autoloader
+
+          echo "🗄️ 迁移数据库..."
+          docker compose exec -T app php artisan migrate --force
+
+          echo "🔗 建立软链..."
+          # 如果已经存在可能会报错，忽略错误
+          docker compose exec -T app php artisan storage:link || true
+
+          echo "🧹 清理缓存..."
+          docker compose exec -T app php artisan config:cache
+          docker compose exec -T app php artisan route:cache
+          docker compose exec -T app php artisan view:cache
+          
+          # 5. 修改权限 (确保容器内的 www-data 能写入宿主机挂载的 storage)
+          # 宿主机的用户可能需要 root 权限执行这个，或者确保目录权限宽松
+          chmod -R 777 storage bootstrap/cache
+
+          echo "✅ Docker 部署完成！"

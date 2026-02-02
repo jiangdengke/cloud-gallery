@@ -1,0 +1,41 @@
+services:
+  # PHP 应用服务 (Built-in Server)
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: cloud_gallery_app
+    restart: always
+    working_dir: /var/www
+    ports:
+      - "80:8000" # 宿主机 80 -> 容器 8000
+    volumes:
+      - ./:/var/www
+    networks:
+      - cloud-network
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+
+  # MySQL 数据库服务
+  mysql:
+    image: mysql:8.0
+    container_name: cloud_gallery_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: '${DB_DATABASE}'
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+      MYSQL_PASSWORD: '${DB_PASSWORD}'
+      MYSQL_USER: '${DB_USERNAME}'
+      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - cloud-network
+
+networks:
+  cloud-network:
+    driver: bridge
+
+volumes:
+  db_data:
