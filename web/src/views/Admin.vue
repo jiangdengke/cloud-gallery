@@ -6,6 +6,12 @@
         <span class="title">Cloud Gallery 管理后台</span>
       </div>
       <div class="actions">
+        <a-button type="text" shape="circle" @click="toggleTheme">
+          <template #icon>
+            <bulb-outlined v-if="!isDark" />
+            <bulb-filled v-else style="color: #fadb14" />
+          </template>
+        </a-button>
         <a-button danger ghost @click="handleLogout">
           <template #icon><logout-outlined /></template>
           退出管理
@@ -22,12 +28,15 @@
 <script setup>
 import { 
   CloudServerOutlined, 
-  LogoutOutlined 
+  LogoutOutlined,
+  BulbOutlined,
+  BulbFilled
 } from '@ant-design/icons-vue';
 import FileExplorer from '../components/FileExplorer.vue';
 import { setApiKey } from '../api/file';
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
+import { isDark, toggleTheme } from '../themeState';
 
 const router = useRouter();
 
@@ -41,14 +50,12 @@ const handleLogout = () => {
 <style scoped>
 .main-container {
   min-height: 100vh;
-  background-color: #f0f2f5;
   display: flex;
   flex-direction: column;
 }
 .header {
   height: 64px;
-  background: #001529; /* 深色 Header 区分前台 */
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -60,7 +67,7 @@ const handleLogout = () => {
   align-items: center;
   font-size: 18px;
   font-weight: 600;
-  color: #fff; /* 白色文字 */
+  color: inherit;
 }
 .logo-icon {
   font-size: 24px;
@@ -68,9 +75,14 @@ const handleLogout = () => {
 }
 .content {
   flex: 1;
-  padding: 24px;
+  padding: 0 24px 24px 24px;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
+}
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 </style>
