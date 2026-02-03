@@ -86,7 +86,7 @@ const handleLogin = () => {
 .content {
   flex: 1;
   padding: 0 24px 24px 24px; /* 减小顶部间距 */
-  max-width: 1200px;
+  max-width: 1400px;
   width: 100%;
   margin: 0 auto;
 }

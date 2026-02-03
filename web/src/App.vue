@@ -33,7 +33,7 @@ body {
   --card-bg: #ffffff;
   --card-shadow: 0 4px 20px rgba(0,0,0,0.05);
   --border-color: rgba(0,0,0,0.06);
-  --hover-bg: rgba(0,0,0,0.02);
+  --hover-bg: rgba(24, 144, 255, 0.06); /* 蓝色微光 */
   --text-color: inherit;
 }
 
@@ -44,7 +44,7 @@ body.dark-mode {
   --card-bg: #1f1f1f;
   --card-shadow: 0 4px 20px rgba(0,0,0,0.2);
   --border-color: rgba(255,255,255,0.05);
-  --hover-bg: rgba(255,255,255,0.06);
+  --hover-bg: rgba(24, 144, 255, 0.15); /* 蓝色微光 */
   --text-color: rgba(255, 255, 255, 0.85);
 }
 

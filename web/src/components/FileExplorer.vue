@@ -39,28 +39,27 @@
         :pagination="false"
         :customRow="customRow"
       >
-        <!-- 图标列 -->
+        <!-- 列表内容渲染 -->
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'icon'">
-            <folder-filled v-if="record.is_folder" style="color: #ffca28; font-size: 24px;" />
-            <file-image-outlined v-else-if="isImage(record)" style="color: #36cfc9; font-size: 20px;" />
-            <file-outlined v-else style="color: #666; font-size: 20px;" />
-          </template>
-          
-          <!-- 名称列 -->
-          <template v-else-if="column.key === 'name'">
-            <span class="file-name">{{ record.name }}</span>
+          <!-- 名称列 (包含图标) -->
+          <template v-if="column.key === 'name'">
+            <div class="name-cell">
+              <folder-filled v-if="record.is_folder" class="file-icon folder" />
+              <file-image-outlined v-else-if="isImage(record)" class="file-icon image" />
+              <file-outlined v-else class="file-icon file" />
+              <span class="file-name">{{ record.name }}</span>
+            </div>
           </template>
 
           <!-- 大小列 -->
           <template v-else-if="column.key === 'size'">
-            <span v-if="!record.is_folder" style="color: #999">{{ formatSize(record.size) }}</span>
+            <span v-if="!record.is_folder" class="size-text">{{ formatSize(record.size) }}</span>
             <span v-else>-</span>
           </template>
 
            <!-- 时间列 -->
            <template v-else-if="column.key === 'updated_at'">
-            <span style="color: #999">{{ formatDate(record.updated_at) }}</span>
+            <span class="date-text">{{ formatDate(record.updated_at) }}</span>
           </template>
         </template>
       </a-table>
@@ -186,8 +185,7 @@ onMounted(() => {
 // 表格列定义
 const columns = computed(() => {
   return [
-    { title: '', key: 'icon', width: 50, align: 'center' },
-    { title: '名称', key: 'name', dataIndex: 'name' },
+    { title: '名称', key: 'name', dataIndex: 'name' }, // 合并图标到这一列
     { title: '大小', key: 'size', dataIndex: 'size', width: 120, align: 'right' },
     { title: '修改时间', key: 'updated_at', dataIndex: 'updated_at', width: 180, align: 'right' },
   ];
@@ -277,9 +275,33 @@ const handleMenuDelete = () => {
 
 .file-name {
   font-weight: 500;
-  font-size: 15px;
+  font-size: 16px; /* 增大字体 */
   color: var(--text-color);
-  margin-left: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* 增大间距 */
+}
+
+.file-icon {
+  font-size: 22px; /* 增大图标 */
+  display: flex;
+  align-items: center;
+}
+.file-icon.folder { color: #ffca28; font-size: 24px; }
+.file-icon.image { color: #36cfc9; }
+.file-icon.file { color: rgba(0,0,0,0.4); }
+:global(.dark-mode) .file-icon.file { color: rgba(255,255,255,0.4); }
+
+.size-text, .date-text {
+  font-size: 14px;
+  color: var(--text-color);
+  opacity: 0.45;
 }
 
 /* 表格样式重置 */
@@ -287,28 +309,57 @@ const handleMenuDelete = () => {
   background: transparent !important;
   color: var(--text-color);
 }
+:deep(.ant-table-container),
+:deep(.ant-table-content) {
+  border: none !important; /* 清除容器边框 */
+}
 :deep(table) {
   border-collapse: collapse !important;
   border-spacing: 0 !important;
+  border: none !important;
 }
 
 /* 表头 */
 :deep(.ant-table-thead > tr > th) {
-  background: transparent !important; /* 表头透明或微调 */
-  border-bottom: 1px solid var(--border-color) !important;
+  background: transparent !important;
+  border: none !important; /* 确保无边框 */
+  border-bottom: none !important;
   color: var(--text-color);
-  opacity: 0.6;
+  opacity: 0.35;
   font-weight: 500;
-  padding: 12px 24px;
+  padding: 16px 24px;
+  font-size: 14px;
 }
 
 /* 每一行 */
+:deep(.ant-table-tbody > tr) {
+  border: none !important; /* 清除行边框 */
+}
 :deep(.ant-table-tbody > tr > td) {
   background: transparent !important;
-  border-bottom: 1px solid var(--border-color) !important;
-  padding: 14px 24px !important;
+  border: none !important;
+  border-bottom: none !important;
+  padding: 16px 24px !important; 
   transition: all 0.2s;
   color: var(--text-color);
+}
+
+/* 核武器：清除所有伪元素线条 */
+:deep(.ant-table-thead > tr > th::before),
+:deep(.ant-table-thead > tr > th::after),
+:deep(.ant-table-tbody > tr > td::before),
+:deep(.ant-table-tbody > tr > td::after) {
+  display: none !important;
+  content: none !important;
+}
+
+/* 悬停效果：增加轻微圆角 + 左侧指示条 */
+:deep(.ant-table-tbody > tr:hover > td) {
+  background: var(--hover-bg) !important;
+}
+:deep(.ant-table-tbody > tr:hover > td:first-child) {
+  /* 左侧蓝色指示条，模拟浮动/选中 */
+  box-shadow: inset 4px 0 0 #1890ff !important;
 }
 :deep(.ant-table-tbody > tr:last-child > td) {
   border-bottom: none !important;

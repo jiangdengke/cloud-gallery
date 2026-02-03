@@ -76,7 +76,7 @@ const handleLogout = () => {
 .content {
   flex: 1;
   padding: 0 24px 24px 24px;
-  max-width: 1200px;
+  max-width: 1400px;
   width: 100%;
   margin: 0 auto;
 }
