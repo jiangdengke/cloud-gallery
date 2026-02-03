@@ -43,6 +43,9 @@ export function useFileExplorer() {
   const uploading = ref(false);
   const activeUploads = ref(0);
 
+  // --- 预览状态 ---
+  const previewFile = ref(null);
+
   // --- 计算属性 ---
   // 当前所在的父文件夹 ID
   const currentParentId = computed(() => {
@@ -55,7 +58,10 @@ export function useFileExplorer() {
     loading.value = true;
     readmeContent.value = ''; // 清空上一个目录的 README
     try {
+      console.log('Fetching files for parentId:', parentId); // Debug Log
       const res = await getFiles(parentId);
+      console.log('Fetch response:', res); // Debug Log
+
       if (res.code === 20000) {
         files.value = res.data.list;
         // 自动查找并加载 README.md
@@ -87,6 +93,15 @@ export function useFileExplorer() {
     } catch (err) {
       console.error('README 加载失败', err);
     }
+  };
+
+  // --- 预览操作 ---
+  const openPreview = (record) => {
+    previewFile.value = record;
+  };
+
+  const closePreview = () => {
+    previewFile.value = null;
   };
 
   // --- 业务操作：新建文件夹 ---
@@ -285,6 +300,7 @@ export function useFileExplorer() {
 
   // --- 导航操作：点击面包屑 ---
   const handleBreadcrumbClick = (item, index) => {
+    if (previewFile.value) closePreview(); // 如果在预览模式，先退出
     if (index === breadcrumbs.value.length - 1) return;
     breadcrumbs.value = breadcrumbs.value.slice(0, index + 1);
     fetchFiles(item.id);
@@ -340,6 +356,10 @@ export function useFileExplorer() {
     treeLoading,
     
     uploading,
+    
+    previewFile,
+    openPreview,
+    closePreview,
     
     fetchFiles,
     openCreateFolder,

@@ -1,84 +1,97 @@
 <template>
   <div class="explorer-container" @click="closeContextMenu">
-    <!-- 管理工具栏 -->
-    <div class="toolbar" v-if="isAdmin">
-      <a-space>
-        <a-upload
-          :show-upload-list="false"
-          :customRequest="handleUpload"
-          :disabled="uploading"
-          multiple
-        >
-          <a-button type="primary" :loading="uploading">
-            <template #icon><upload-outlined /></template>
-            上传文件
+    <!-- 视图 A：文件列表模式 -->
+    <template v-if="!previewFile">
+      <!-- 管理工具栏 -->
+      <div class="toolbar" v-if="isAdmin">
+        <a-space>
+          <a-upload
+            :show-upload-list="false"
+            :customRequest="handleUpload"
+            :disabled="uploading"
+            multiple
+          >
+            <a-button type="primary" :loading="uploading">
+              <template #icon><upload-outlined /></template>
+              上传文件
+            </a-button>
+          </a-upload>
+          
+          <a-button @click="openCreateFolder">
+            <template #icon><folder-add-outlined /></template>
+            新建文件夹
           </a-button>
-        </a-upload>
-        
-        <a-button @click="openCreateFolder">
-          <template #icon><folder-add-outlined /></template>
-          新建文件夹
-        </a-button>
-      </a-space>
-    </div>
+        </a-space>
+      </div>
 
-    <!-- 面包屑 -->
-    <a-breadcrumb class="breadcrumb">
-      <a-breadcrumb-item v-for="(item, index) in breadcrumbs" :key="item.id || 'root'">
-        <a @click="handleBreadcrumbClick(item, index)">{{ item.name }}</a>
-      </a-breadcrumb-item>
-    </a-breadcrumb>
+      <!-- 面包屑 -->
+      <a-breadcrumb class="breadcrumb">
+        <a-breadcrumb-item v-for="(item, index) in breadcrumbs" :key="item.id || 'root'">
+          <a @click="handleBreadcrumbClick(item, index)">{{ item.name }}</a>
+        </a-breadcrumb-item>
+      </a-breadcrumb>
 
-    <!-- 文件列表 -->
-    <a-card :bordered="false" class="file-card">
-      <a-table
-        :dataSource="files"
-        :columns="columns"
-        :loading="loading"
-        rowKey="id"
-        :pagination="false"
-        :customRow="customRow"
-      >
-        <!-- 列表内容渲染 -->
-        <template #bodyCell="{ column, record }">
-          <!-- 名称列 (包含图标) -->
-          <template v-if="column.key === 'name'">
-            <div class="name-cell">
-              <folder-filled v-if="record.is_folder" class="file-icon folder" />
-              <file-image-outlined v-else-if="isImage(record)" class="file-icon image" />
-              <file-outlined v-else class="file-icon file" />
-              <span class="file-name">{{ record.name }}</span>
-            </div>
+      <!-- 文件列表 -->
+      <a-card :bordered="false" class="file-card">
+        <a-table
+          :dataSource="files"
+          :columns="columns"
+          :loading="loading"
+          rowKey="id"
+          :pagination="false"
+          :customRow="customRow"
+        >
+          <!-- 列表内容渲染 -->
+          <template #bodyCell="{ column, record }">
+            <!-- 名称列 (包含图标) -->
+            <template v-if="column.key === 'name'">
+              <div class="name-cell">
+                <folder-filled v-if="record.is_folder" class="file-icon folder" />
+                <file-image-outlined v-else-if="isImage(record)" class="file-icon image" />
+                <file-outlined v-else class="file-icon file" />
+                <span class="file-name">{{ record.name }}</span>
+              </div>
+            </template>
+
+            <!-- 大小列 -->
+            <template v-else-if="column.key === 'size'">
+              <span v-if="!record.is_folder" class="size-text">{{ formatSize(record.size) }}</span>
+              <span v-else>-</span>
+            </template>
+
+             <!-- 时间列 -->
+             <template v-else-if="column.key === 'updated_at'">
+              <span class="date-text">{{ formatDate(record.updated_at) }}</span>
+            </template>
           </template>
+        </a-table>
+      </a-card>
 
-          <!-- 大小列 -->
-          <template v-else-if="column.key === 'size'">
-            <span v-if="!record.is_folder" class="size-text">{{ formatSize(record.size) }}</span>
-            <span v-else>-</span>
-          </template>
+      <!-- README 展示区 -->
+      <a-card v-if="readmeContent" class="readme-card" :bordered="false" title="README.md">
+        <div class="markdown-body" v-html="readmeContent"></div>
+      </a-card>
+    </template>
 
-           <!-- 时间列 -->
-           <template v-else-if="column.key === 'updated_at'">
-            <span class="date-text">{{ formatDate(record.updated_at) }}</span>
-          </template>
-        </template>
-      </a-table>
-    </a-card>
-
-    <!-- README 展示区 -->
-    <a-card v-if="readmeContent" class="readme-card" :bordered="false" title="README.md">
-      <div class="markdown-body" v-html="readmeContent"></div>
-    </a-card>
-    
-    <!-- 图片预览组件 -->
-    <a-image
-      :style="{ display: 'none' }"
-      :preview="{
-        visible: previewVisible,
-        onVisibleChange: (val) => (previewVisible = val),
-        src: previewImage
-      }"
-    />
+    <!-- 视图 B：图片预览模式 -->
+    <template v-else>
+      <div class="preview-container">
+        <div class="preview-header">
+          <a-button type="text" @click="closePreview" class="back-btn">
+            <template #icon><arrow-left-outlined /></template>
+            返回列表
+          </a-button>
+          <span class="preview-title">{{ previewFile.name }}</span>
+          <a-button type="primary" ghost @click="downloadFile(previewFile)">
+            <template #icon><download-outlined /></template>
+            下载原图
+          </a-button>
+        </div>
+        <div class="preview-body">
+          <img :src="`/api/files/${previewFile.id}/download`" class="preview-img" alt="preview" />
+        </div>
+      </div>
+    </template>
     
     <!-- 右键菜单 -->
     <div 
@@ -147,7 +160,8 @@ import {
   EditOutlined,
   FileImageOutlined,
   ScissorOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  ArrowLeftOutlined
 } from '@ant-design/icons-vue';
 import 'github-markdown-css/github-markdown.css';
 
@@ -169,13 +183,12 @@ const {
   openRename, handleRename, handleDelete,
   openMove, handleMove, onLoadTreeData,
   handleUpload, handleBreadcrumbClick,
-  formatSize, formatDate, isImage, downloadFile
+  formatSize, formatDate, isImage, downloadFile,
+  previewFile, openPreview, closePreview 
 } = useFileExplorer();
 
-// --- UI 独有状态 (右键菜单 & 预览) ---
+// --- UI 独有状态 ---
 const contextMenu = ref({ visible: false, x: 0, y: 0, record: null });
-const previewVisible = ref(false);
-const previewImage = ref('');
 
 // 初始化
 onMounted(() => {
@@ -198,14 +211,13 @@ const handleRowClick = (record) => {
     breadcrumbs.value.push({ id: record.id, name: record.name });
     fetchFiles(record.id);
   } else if (isImage(record)) {
-    previewImage.value = `/api/files/${record.id}/download`;
-    previewVisible.value = true;
+    openPreview(record);
   } else {
     downloadFile(record);
   }
 };
 
-// 自定义行事件 (右键菜单)
+// 自定义行事件
 const customRow = (record) => {
   return {
     onClick: () => handleRowClick(record),
@@ -311,7 +323,7 @@ const handleMenuDelete = () => {
 }
 :deep(.ant-table-container),
 :deep(.ant-table-content) {
-  border: none !important; /* 清除容器边框 */
+  border: none !important;
 }
 :deep(table) {
   border-collapse: collapse !important;
@@ -322,24 +334,24 @@ const handleMenuDelete = () => {
 /* 表头 */
 :deep(.ant-table-thead > tr > th) {
   background: transparent !important;
-  border: none !important; /* 确保无边框 */
+  border: none !important;
   border-bottom: none !important;
   color: var(--text-color);
   opacity: 0.35;
   font-weight: 500;
-  padding: 16px 24px;
+  padding: 16px 24px; /* 增大表头高度 */
   font-size: 14px;
 }
 
 /* 每一行 */
 :deep(.ant-table-tbody > tr) {
-  border: none !important; /* 清除行边框 */
+  border: none !important;
 }
 :deep(.ant-table-tbody > tr > td) {
   background: transparent !important;
   border: none !important;
   border-bottom: none !important;
-  padding: 16px 24px !important; 
+  padding: 16px 24px !important; /* 增大行高 */
   transition: all 0.2s;
   color: var(--text-color);
 }
@@ -353,21 +365,12 @@ const handleMenuDelete = () => {
   content: none !important;
 }
 
-/* 悬停效果：增加轻微圆角 + 左侧指示条 */
+/* 悬停效果 */
 :deep(.ant-table-tbody > tr:hover > td) {
   background: var(--hover-bg) !important;
 }
 :deep(.ant-table-tbody > tr:hover > td:first-child) {
-  /* 左侧蓝色指示条，模拟浮动/选中 */
   box-shadow: inset 4px 0 0 #1890ff !important;
-}
-:deep(.ant-table-tbody > tr:last-child > td) {
-  border-bottom: none !important;
-}
-
-/* 悬停效果 */
-:deep(.ant-table-tbody > tr:hover > td) {
-  background: var(--hover-bg) !important;
 }
 
 :deep(.ant-table-row) {
@@ -385,12 +388,50 @@ const handleMenuDelete = () => {
   color: var(--text-color);
 }
 
+/* 预览样式 */
+.preview-container {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--card-shadow);
+  min-height: 400px;
+}
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+}
+.preview-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.preview-body {
+  display: flex;
+  justify-content: center;
+  background: rgba(0,0,0,0.02);
+  padding: 40px;
+  border-radius: 8px;
+}
+.preview-img {
+  max-width: 100%;
+  max-height: 80vh;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  border-radius: 4px;
+}
+:global(.dark-mode) .preview-body {
+  background: rgba(255,255,255,0.02);
+}
+
 /* 右键菜单 */
 .context-menu {
   position: fixed;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2); /* 菜单阴影保持较深 */
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
   border-radius: 8px;
   z-index: 1000;
   min-width: 140px;
