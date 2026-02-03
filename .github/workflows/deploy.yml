@@ -82,20 +82,23 @@ jobs:
           sleep 10
 
           # 4. 在容器内执行维护命令
+          # 使用 run --rm 而不是 exec，因为如果 app 容器因为缺依赖挂了，exec 会失败，导致死锁
           echo "📦 安装依赖..."
-          docker compose exec -T app composer install --no-dev --optimize-autoloader
+          docker compose run --rm app composer install --no-dev --optimize-autoloader
 
           echo "🗄️ 迁移数据库..."
-          docker compose exec -T app php artisan migrate --force
+          docker compose run --rm app php artisan migrate --force
 
           echo "🔗 建立软链..."
-          # 如果已经存在可能会报错，忽略错误
-          docker compose exec -T app php artisan storage:link || true
+          docker compose run --rm app php artisan storage:link || true
 
           echo "🧹 清理缓存..."
-          docker compose exec -T app php artisan config:cache
-          docker compose exec -T app php artisan route:cache
-          docker compose exec -T app php artisan view:cache
+          docker compose run --rm app php artisan config:cache
+          docker compose run --rm app php artisan route:cache
+          docker compose run --rm app php artisan view:cache
+          
+          # 重启 app 服务以应用新代码和配置 (如果它之前挂了，现在应该能起来)
+          docker compose restart app
           
           # 5. 修改权限 (确保容器内的 www-data 能写入宿主机挂载的 storage)
           # 宿主机的用户可能需要 root 权限执行这个，或者确保目录权限宽松
