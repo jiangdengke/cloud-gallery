@@ -72,20 +72,23 @@ jobs:
             git pull origin master
           fi
 
-          # 2. 启动/重建容器
-          # -d: 后台运行
-          # --build:如果有代码变动，重新构建镜像
-          docker compose up -d --build
+          # 2. 停止旧服务 (避免文件锁或重启冲突)
+          echo "🛑 停止旧服务..."
+          docker compose down
 
-          # 3. 等待容器启动 (防止 mysql 还没准备好就 migrate)
-          echo "⏳ 等待服务启动..."
-          sleep 10
-
-          # 4. 在容器内执行维护命令
-          # 使用 run --rm 而不是 exec，因为如果 app 容器因为缺依赖挂了，exec 会失败，导致死锁
+          # 3. 安装依赖 (使用临时容器，在挂载卷中安装)
           echo "📦 安装依赖..."
           docker compose run --rm app composer install --no-dev --optimize-autoloader
 
+          # 4. 启动服务
+          echo "🚀 启动新服务..."
+          docker compose up -d --build
+
+          # 5. 等待数据库准备好
+          echo "⏳ 等待服务就绪..."
+          sleep 10
+
+          # 6. 执行维护命令
           echo "🗄️ 迁移数据库..."
           docker compose run --rm app php artisan migrate --force
 
@@ -97,8 +100,10 @@ jobs:
           docker compose run --rm app php artisan route:cache
           docker compose run --rm app php artisan view:cache
           
-          # 重启 app 服务以应用新代码和配置 (如果它之前挂了，现在应该能起来)
-          docker compose restart app
+          # 7. 修改权限
+          chmod -R 777 storage bootstrap/cache
+
+          echo "✅ Docker 部署完成！"
           
           # 5. 修改权限 (确保容器内的 www-data 能写入宿主机挂载的 storage)
           # 宿主机的用户可能需要 root 权限执行这个，或者确保目录权限宽松
