@@ -36,7 +36,7 @@ jobs:
         username: ${{ secrets.SERVER_USER }}
         password: ${{ secrets.SERVER_PASSWORD }}
         source: "web/dist/*"
-        target: "/var/www/cloud-gallery/public"
+        target: "/var/www/cloud-gallery/web/dist"
         strip_components: 2
 
     # --- SSH 部署 (Docker Compose) ---
@@ -53,7 +53,7 @@ jobs:
           echo "🚀 开始 Docker 部署到 $PROJECT_PATH ..."
           
           # 确保目录存在
-          mkdir -p $PROJECT_PATH
+          mkdir -p $PROJECT_PATH/web/dist
           cd $PROJECT_PATH
 
           # 1. 智能拉取代码 (自动处理首次部署)

@@ -1,5 +1,5 @@
 services:
-  # PHP 应用服务 (Built-in Server)
+  # 后端 API 服务
   app:
     build:
       context: .
@@ -7,17 +7,35 @@ services:
     container_name: cloud_gallery_app
     restart: always
     working_dir: /var/www
-    ports:
-      - "8000:8000" # 宿主机 8000 -> 容器 8000
+    # 内部端口 8000，不再直接暴露给公网 (通过 frontend 代理)
+    # 如果需要调试，可以映射 8000:8000
+    expose:
+      - "8000"
     volumes:
       - ./:/var/www
+      - app_vendor:/var/www/vendor
     networks:
       - cloud-network
     environment:
       - DB_HOST=mysql
       - DB_PORT=3306
 
+  # 前端 Web 服务 (Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: cloud_gallery_frontend
+    restart: always
+    ports:
+      - "8000:80" # 宿主机 8000 -> 容器 80
+    networks:
+      - cloud-network
+    depends_on:
+      - app
+
   # MySQL 数据库服务
+
   mysql:
     image: mysql:8.0
     container_name: cloud_gallery_db
