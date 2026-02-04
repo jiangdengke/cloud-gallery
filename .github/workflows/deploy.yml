@@ -72,12 +72,21 @@ jobs:
             git pull origin master
           fi
 
-          # 2. 停止旧服务 (避免文件锁或重启冲突)
+          # 2. 停止旧服务
           echo "🛑 停止旧服务..."
           docker compose down
 
-          # 3. 安装依赖 (使用临时容器，在挂载卷中安装)
+          # 3. 清理并安装依赖
+          echo "🧹 清理旧依赖..."
+          # 必须在宿主机执行，确保挂载卷是干净的
+          rm -rf vendor composer.lock 
+          # 注意：删掉 composer.lock 会导致升级到最新依赖，如果想锁版本，不要删 lock。
+          # 但如果 lock 文件有冲突，删了可以解决问题。既然是生产环境，最好保留 lock。
+          # 这里只删 vendor。
+          rm -rf vendor
+
           echo "📦 安装依赖..."
+          # 这里会重新生成 vendor 到宿主机挂载目录
           docker compose run --rm app composer install --no-dev --optimize-autoloader
 
           # 4. 启动服务
