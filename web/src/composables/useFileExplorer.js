@@ -122,8 +122,23 @@ export function useFileExplorer() {
     showShareModal.value = true;
   };
 
+  const buildShareLink = (share) => {
+    const token = share?.token ?? share?.share_token;
+    if (token) {
+      return new URL(`/s/${token}`, window.location.origin).toString();
+    }
+
+    const link = share?.link;
+    if (!link) return null;
+    try {
+      return new URL(link, window.location.origin).toString();
+    } catch (e) {
+      return link;
+    }
+  };
+
   const copyShareLink = async () => {
-    const link = shareResult.value?.link;
+    const link = buildShareLink(shareResult.value);
     if (!link) return;
 
     try {
@@ -169,7 +184,10 @@ export function useFileExplorer() {
     try {
       const res = await createShare(shareTarget.value.id, { password, expiredAt });
       if (res.code === 20000) {
-        shareResult.value = res.data;
+        shareResult.value = {
+          ...res.data,
+          link: buildShareLink(res.data) || res.data?.link,
+        };
         message.success('分享创建成功');
       } else {
         message.error(res.message || '创建失败');
