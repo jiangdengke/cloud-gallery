@@ -97,6 +97,11 @@ cp -r dist/* ../public/
 
 Dockerfile 会自动构建前端并复制到 `public/`，无需手动构建。
 
+> 注意：`docker-compose.yml` **不包含数据库服务**。请在 `.env` 中配置 `DB_*` 连接到你自己的数据库（例如云 MySQL、公司内网 MySQL 等）。
+>
+> - 数据库在宿主机：`DB_HOST=host.docker.internal`（Docker Desktop 通常可用）
+> - 数据库在远程：填公网/内网地址即可
+
 1) 准备 `.env`（示例）：
 
 ```ini
@@ -104,11 +109,11 @@ APP_URL=http://localhost:8080
 API_KEY=your_secret_key
 
 DB_CONNECTION=mysql
-DB_HOST=db
+DB_HOST=your-db-host
 DB_PORT=3306
 DB_DATABASE=cloud_gallery
-DB_USERNAME=root
-DB_PASSWORD=123456
+DB_USERNAME=your_user
+DB_PASSWORD=your_password
 ```
 
 2) 启动：
@@ -126,7 +131,7 @@ docker compose exec app php artisan migrate --force
 
 访问：`http://localhost:8080`
 
-> `docker-compose.yml` 默认使用 MySQL 8，并通过 volume 持久化 DB 与 storage。
+> `docker-compose.yml` 仅负责启动应用容器；上传文件会持久化在 volume：`storage-data`。
 
 ## ✅ 使用说明
 

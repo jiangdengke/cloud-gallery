@@ -1,28 +1,15 @@
-﻿services:
+services:
   app:
     build:
       context: .
       target: app
-    env_file: .env
-    environment:
-      DB_HOST: db
+    env_file:
+      - .env
     ports:
-      -  8080:80
+      - 8080:80
     volumes:
-      - ./.env:/var/www/.env
+      - ./.env:/var/www/.env:ro
       - storage-data:/var/www/storage
-    depends_on:
-      - db
-
-  db:
-    image: mysql:8.0
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    environment:
-      MYSQL_DATABASE: cloud_gallery
-      MYSQL_ROOT_PASSWORD: 123456
-    volumes:
-      - db-data:/var/lib/mysql
 
 volumes:
-  db-data:
   storage-data:
