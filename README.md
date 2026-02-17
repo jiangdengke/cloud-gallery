@@ -16,6 +16,12 @@
 - **Frontend**：Vue 3、Vite、Ant Design Vue、Axios、Vue Router
 - **响应封装**：`jiannei/laravel-response`
 
+## 🧭 前端目录说明
+
+- 前端源码仅在 `web/`（Vite 项目）。
+- 根目录不再保留 Laravel 默认的 `resources/js`、`resources/css` 以及 Vite/Tailwind 相关配置（避免两套前端并存）。
+- 生产构建会把 `web/dist` 产物复制到 `public/`，由 `routes/web.php` 将非 `/api` 的请求回落到 `public/index.html`（SPA）。
+
 ## 🚀 快速开始（本地开发）
 
 ### 1) 后端（Laravel）
@@ -61,9 +67,14 @@ DB_CONNECTION=sqlite
 ### 2) 前端（Vue）
 
 ```bash
+# 方式 A：进入 web 目录
 cd web
 npm install
 npm run dev
+
+# 方式 B：在项目根目录执行
+# npm --prefix web install
+# npm --prefix web run dev
 ```
 
 访问：`http://localhost:5173`

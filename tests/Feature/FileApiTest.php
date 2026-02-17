@@ -26,7 +26,7 @@ class FileApiTest extends TestCase
     {
         Storage::fake('public');
 
-        $file = UploadedFile::fake()->image('photo.jpg');
+        $file = UploadedFile::fake()->create('photo.jpg', 12, 'image/jpeg');
 
         $response = $this->withHeader('X-Api-Key', $this->apiKey)
             ->post('/api/files/upload', [
@@ -95,7 +95,7 @@ class FileApiTest extends TestCase
 
         $response = $this->withHeader('X-Api-Key', $this->apiKey)
             ->post('/api/files/upload', [
-                'file' => UploadedFile::fake()->image('bad.jpg'),
+                'file' => UploadedFile::fake()->create('bad.jpg', 12, 'image/jpeg'),
                 'parent_id' => $fileParent->id,
             ]);
 
