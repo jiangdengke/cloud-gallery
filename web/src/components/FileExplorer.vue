@@ -111,6 +111,9 @@
         <div class="menu-item" @click="handleMenuMove">
           <scissor-outlined /> 移动
         </div>
+        <div class="menu-item" @click="handleMenuShare">
+          <share-alt-outlined /> 分享
+        </div>
         <div class="menu-item delete" @click="handleMenuDelete">
           <delete-outlined /> 删除
         </div>
@@ -143,6 +146,40 @@
           </template>
         </a-tree>
       </a-modal>
+
+      <a-modal
+        v-model:open="showShareModal"
+        :title="shareResult ? '分享链接' : '创建分享链接'"
+        :okText="shareResult ? '关闭' : '创建'"
+        :confirmLoading="shareCreating"
+        @ok="handleShareOk"
+      >
+        <template v-if="!shareResult">
+          <div style="margin-bottom: 12px;">
+            将为 <strong>{{ shareTarget?.name }}</strong> 创建分享链接
+          </div>
+          <a-input
+            v-model:value="sharePassword"
+            placeholder="提取码（可选，4-6位）"
+            style="margin-bottom: 12px;"
+          />
+          <a-date-picker
+            v-model:value="shareExpiredAt"
+            show-time
+            style="width: 100%;"
+            placeholder="过期时间（可选）"
+          />
+        </template>
+        <template v-else>
+          <a-input-group compact>
+            <a-input :value="shareResult.link" readonly style="width: calc(100% - 88px);" />
+            <a-button type="primary" @click="copyShareLink">复制</a-button>
+          </a-input-group>
+          <div v-if="shareResult.expired_at" style="margin-top: 12px; opacity: 0.75;">
+            过期时间：{{ shareResult.expired_at }}
+          </div>
+        </template>
+      </a-modal>
     </template>
   </div>
 </template>
@@ -161,7 +198,8 @@ import {
   FileImageOutlined,
   ScissorOutlined,
   DownloadOutlined,
-  ArrowLeftOutlined
+  ArrowLeftOutlined,
+  ShareAltOutlined
 } from '@ant-design/icons-vue';
 import 'github-markdown-css/github-markdown.css';
 
@@ -178,11 +216,13 @@ const {
   showCreateFolderModal, newFolderName,
   showRenameModal, renameInput,
   showMoveModal, moveTargetId, treeData, treeLoading,
+  showShareModal, shareTarget, sharePassword, shareExpiredAt, shareCreating, shareResult,
   uploading,
   fetchFiles, openCreateFolder, handleCreateFolder,
   openRename, handleRename, handleDelete,
   openMove, handleMove, onLoadTreeData,
   handleUpload, handleBreadcrumbClick,
+  openShare, handleShareOk, copyShareLink,
   formatSize, formatDate, isImage, downloadFile,
   previewFile, openPreview, closePreview 
 } = useFileExplorer();
@@ -255,6 +295,11 @@ const handleMenuMove = () => {
 
 const handleMenuDelete = () => {
   if (contextMenu.value.record) handleDelete(contextMenu.value.record);
+  closeContextMenu();
+};
+
+const handleMenuShare = () => {
+  if (contextMenu.value.record) openShare(contextMenu.value.record);
   closeContextMenu();
 };
 </script>

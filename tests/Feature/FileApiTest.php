@@ -47,6 +47,41 @@ class FileApiTest extends TestCase
         ]);
     }
 
+    public function test_upload_deduplicates_by_hash(): void
+    {
+        Storage::fake('public');
+
+        $first = UploadedFile::fake()->createWithContent('a.txt', 'hello');
+        $second = UploadedFile::fake()->createWithContent('b.txt', 'hello');
+
+        $firstResponse = $this->withHeader('X-Api-Key', $this->apiKey)
+            ->post('/api/files/upload', [
+                'file' => $first,
+            ]);
+
+        $firstResponse
+            ->assertStatus(200)
+            ->assertJsonPath('status', 'success');
+
+        $firstPath = $firstResponse->json('data.disk_path');
+        $this->assertNotEmpty($firstPath);
+
+        $secondResponse = $this->withHeader('X-Api-Key', $this->apiKey)
+            ->post('/api/files/upload', [
+                'file' => $second,
+            ]);
+
+        $secondResponse
+            ->assertStatus(200)
+            ->assertJsonPath('status', 'success');
+
+        $secondPath = $secondResponse->json('data.disk_path');
+        $this->assertSame($firstPath, $secondPath);
+
+        Storage::disk('public')->assertExists($firstPath);
+        $this->assertCount(1, Storage::disk('public')->allFiles());
+    }
+
     public function test_upload_rejects_parent_not_folder(): void
     {
         $fileParent = File::create([
@@ -195,7 +230,7 @@ class FileApiTest extends TestCase
             ->assertJsonPath('code', ResponseCodeEnum::PARENT_NOT_FOLDER->value);
     }
 
-    public function test_download_rejects_folder(): void
+    public function test_download_folder_returns_zip(): void
     {
         $folder = File::create([
             'parent_id' => null,
@@ -205,10 +240,11 @@ class FileApiTest extends TestCase
             'disk_path' => null,
         ]);
 
-        $response = $this->getJson("/api/files/{$folder->id}/download");
+        $response = $this->get("/api/files/{$folder->id}/download");
 
         $response
-            ->assertJsonPath('code', ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED->value);
+            ->assertStatus(200)
+            ->assertDownload('Folder.zip');
     }
 
     public function test_delete_folder_happy_path(): void

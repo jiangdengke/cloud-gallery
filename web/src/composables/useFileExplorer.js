@@ -8,6 +8,7 @@ import api, {
   uploadFile, 
   moveFile 
 } from '../api/file';
+import { createShare } from '../api/share';
 import MarkdownIt from 'markdown-it';
 
 /**
@@ -38,6 +39,14 @@ export function useFileExplorer() {
   const movingFile = ref(null); // 当前移动的文件对象
   const treeData = ref([]); // 移动弹窗里的目录树数据
   const treeLoading = ref(false);
+
+  // --- 分享状态 ---
+  const showShareModal = ref(false);
+  const shareTarget = ref(null);
+  const sharePassword = ref('');
+  const shareExpiredAt = ref(null);
+  const shareCreating = ref(false);
+  const shareResult = ref(null);
 
   // --- 上传状态 ---
   const uploading = ref(false);
@@ -102,6 +111,75 @@ export function useFileExplorer() {
 
   const closePreview = () => {
     previewFile.value = null;
+  };
+
+  // --- 业务操作：分享 ---
+  const openShare = (record) => {
+    shareTarget.value = record;
+    sharePassword.value = '';
+    shareExpiredAt.value = null;
+    shareResult.value = null;
+    showShareModal.value = true;
+  };
+
+  const copyShareLink = async () => {
+    const link = shareResult.value?.link;
+    if (!link) return;
+
+    try {
+      await navigator.clipboard.writeText(link);
+      message.success('链接已复制');
+    } catch (err) {
+      // fallback
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = link;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        message.success('链接已复制');
+      } catch (e) {
+        message.error('复制失败，请手动复制');
+      }
+    }
+  };
+
+  const handleShareOk = async () => {
+    if (shareResult.value) {
+      showShareModal.value = false;
+      return;
+    }
+
+    if (!shareTarget.value) return;
+
+    const password = sharePassword.value?.trim() || null;
+    if (password && (password.length < 4 || password.length > 6)) {
+      message.warning('提取码长度应为 4-6 位');
+      return;
+    }
+
+    const expiredAt = shareExpiredAt.value?.format
+      ? shareExpiredAt.value.format('YYYY-MM-DD HH:mm:ss')
+      : null;
+
+    shareCreating.value = true;
+    try {
+      const res = await createShare(shareTarget.value.id, { password, expiredAt });
+      if (res.code === 20000) {
+        shareResult.value = res.data;
+        message.success('分享创建成功');
+      } else {
+        message.error(res.message || '创建失败');
+      }
+    } catch (err) {
+      console.error(err);
+      message.error('创建失败');
+    } finally {
+      shareCreating.value = false;
+    }
   };
 
   // --- 业务操作：新建文件夹 ---
@@ -329,7 +407,7 @@ export function useFileExplorer() {
     const url = `/api/files/${record.id}/download`;
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', record.name);
+    link.setAttribute('download', record.is_folder ? `${record.name}.zip` : record.name);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -354,6 +432,13 @@ export function useFileExplorer() {
     moveTargetId,
     treeData,
     treeLoading,
+
+    showShareModal,
+    shareTarget,
+    sharePassword,
+    shareExpiredAt,
+    shareCreating,
+    shareResult,
     
     uploading,
     
@@ -372,7 +457,10 @@ export function useFileExplorer() {
     onLoadTreeData,
     handleUpload,
     handleBreadcrumbClick,
-    
+    openShare,
+    handleShareOk,
+    copyShareLink,
+     
     formatSize,
     formatDate,
     isImage,

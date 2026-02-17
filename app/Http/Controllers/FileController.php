@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Resources\FileListResource;
 use App\Http\Resources\FileResource;
 use App\Models\File;
+use App\Services\FolderZipService;
 use Illuminate\Http\Request;
 use Jiannei\Response\Laravel\Support\Facades\Response;
 use App\Enums\ResponseCodeEnum;
@@ -25,10 +26,16 @@ class FileController extends Controller
 
         // 检查是否为文件夹
         if ($file->is_folder) {
-            return Response::fail('',ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED);
+            try {
+                [$zipPath, $downloadName] = app(FolderZipService::class)->createZipForFolder($file);
+            } catch (\Throwable $e) {
+                return Response::fail('', ResponseCodeEnum::ZIP_CREATE_ERROR);
+            }
+
+            return response()->download($zipPath, $downloadName)->deleteFileAfterSend(true);
         }
         // 检查物理文件是否存在
-        if (!Storage::disk('public')->exists($file->disk_path)) {
+        if (!$file->disk_path || !Storage::disk('public')->exists($file->disk_path)) {
             return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
         }
         // 执行下载
@@ -146,7 +153,13 @@ class FileController extends Controller
         } else {
             // 如果是文件，删除物理文件
             if ($file->disk_path && Storage::disk('public')->exists($file->disk_path)) {
-                Storage::disk('public')->delete($file->disk_path);
+                $hasOtherReferences = File::where('disk_path', $file->disk_path)
+                    ->where('id', '!=', $file->id)
+                    ->exists();
+
+                if (!$hasOtherReferences) {
+                    Storage::disk('public')->delete($file->disk_path);
+                }
             }
         }
         // 删除数据库记录
@@ -220,17 +233,23 @@ class FileController extends Controller
         // 4. 计算文件哈希（MD5） 后面实现秒传todo
         $hash = md5_file($file->getRealPath());
 
-        // 5. 秒传检测逻辑：如果数据库已有该hash，直接复制引用，不存物理文件
-        // $existFile = File::where('hash', $hash)->first();
-        // if ($existFile) { ... }
+        // 5. 秒传/去重：如果数据库已有该 hash 且物理文件存在，直接复用 disk_path
+        $existFile = File::where('hash', $hash)
+            ->where('is_folder', false)
+            ->whereNotNull('disk_path')
+            ->first();
 
-        // 6. 物理存储
-        // 存到 storage/app/public/uploads/2026-01-25/ 目录下
-        // store() 会自动生成一个随机文件名，防止中文乱码和重名
-        $path = $file->store('uploads/' . date('Y-m-d'), 'public');
+        if ($existFile && Storage::disk('public')->exists($existFile->disk_path)) {
+            $path = $existFile->disk_path;
+        } else {
+            // 6. 物理存储
+            // 存到 storage/app/public/uploads/2026-01-25/ 目录下
+            // store() 会自动生成一个随机文件名，防止中文乱码和重名
+            $path = $file->store('uploads/' . date('Y-m-d'), 'public');
 
-        if (!$path) {
-            return Response::fail( '',ResponseCodeEnum::FILE_SAVE_ERROR);
+            if (!$path) {
+                return Response::fail('', ResponseCodeEnum::FILE_SAVE_ERROR);
+            }
         }
 
         // 7. 处理文件名冲突 (如果在同一目录下有同名文件，自动重命名)

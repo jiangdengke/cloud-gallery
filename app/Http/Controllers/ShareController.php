@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ResponseCodeEnum;
-use App\Http\Resources\FileResource;
 use App\Http\Resources\ShareCreateResource;
 use App\Http\Resources\ShareDetailResource;
+use App\Http\Resources\ShareFileListResource;
 use App\Models\File;
 use App\Models\FileShare;
+use App\Services\FolderZipService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Jiannei\Response\Laravel\Support\Facades\Response;
@@ -29,29 +30,52 @@ class ShareController extends Controller
         if ($share->expired_at && $share->expired_at->isPast()) {
             return Response::fail('', ResponseCodeEnum::SHARE_EXPIRED);
         }
-        if ($share->password && $request->password !== $share->password) {
+        if ($share->password) {
             if (!$request->filled('password')) {
                 return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
             }
-            return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
-
+            if ($request->password !== $share->password) {
+                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
+            }
         }
 
-        // 获取子文件
-        $file = $share->file;
-        // 如果分享记录对应的文件已被删除
-        if (!$file) {
-            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
+        $root = $share->file;
+        if (!$root) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
         }
-        // 如果分享的不是文件夹，那这个接口没意义
-        if (!$file->is_folder) {
+        if (!$root->is_folder) {
             return Response::fail('', ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED);
         }
-        // 查询子文件
-        // 这里暂时只支持查看第一层，如果要支持点进子文件夹，还需要处理parent_id参数
-        $files = File::where('parent_id', $file->id)->get();
 
-        return Response::success(FileResource::collection($files));
+        $parentId = $request->query('parent_id');
+        $parent = $root;
+        if ($parentId !== null && $parentId !== '') {
+            $parent = File::find($parentId);
+            if (!$parent) {
+                return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
+            }
+            if (!$parent->is_folder) {
+                return Response::fail('', ResponseCodeEnum::PARENT_NOT_FOLDER);
+            }
+            if (!$this->isWithinRoot($parent, $root)) {
+                return Response::fail('', ResponseCodeEnum::SHARE_ACCESS_DENIED);
+            }
+        }
+
+        $files = File::where('parent_id', $parent->id)
+            ->orderBy('is_folder', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return Response::success(
+            ShareFileListResource::make([
+                'list' => $files,
+                'parent_id' => $parent->id,
+                'root_id' => $root->id,
+            ]),
+            '',
+            ResponseCodeEnum::OK
+        );
     }
 
     /**
@@ -146,20 +170,42 @@ class ShareController extends Controller
                 return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
             }
         }
-        $file = $share->file;
+
+        $root = $share->file;
+        if (!$root) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
+        }
+
+        $target = $root;
+        $targetId = $request->query('file_id');
+        if ($targetId !== null && $targetId !== '') {
+            $target = File::find($targetId);
+            if (!$target) {
+                return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
+            }
+            if (!$this->isWithinRoot($target, $root)) {
+                return Response::fail('', ResponseCodeEnum::SHARE_ACCESS_DENIED);
+            }
+        }
 
         // 检查是否为文件夹
-        if ($file->is_folder) {
-            return Response::fail('', ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED);
+        if ($target->is_folder) {
+            try {
+                [$zipPath, $downloadName] = app(FolderZipService::class)->createZipForFolder($target);
+            } catch (\Throwable $e) {
+                return Response::fail('', ResponseCodeEnum::ZIP_CREATE_ERROR);
+            }
+
+            return response()->download($zipPath, $downloadName)->deleteFileAfterSend(true);
         }
 
         // 检查物理文件是否存在
-        if (!Storage::disk('public')->exists($file->disk_path)) {
+        if (!$target->disk_path || !Storage::disk('public')->exists($target->disk_path)) {
             return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
         }
 
         // 强制下载
-        return Storage::disk('public')->download($file->disk_path, $file->name);
+        return Storage::disk('public')->download($target->disk_path, $target->name);
     }
     /**
      * 创建分享链接
@@ -196,5 +242,24 @@ class ShareController extends Controller
 
         // 返回分享信息
         return Response::success(ShareCreateResource::make($share));
+    }
+
+    private function isWithinRoot(File $file, File $root): bool
+    {
+        $current = $file;
+
+        while ($current) {
+            if ($current->id === $root->id) {
+                return true;
+            }
+
+            if (!$current->parent_id) {
+                break;
+            }
+
+            $current = File::find($current->parent_id);
+        }
+
+        return false;
     }
 }

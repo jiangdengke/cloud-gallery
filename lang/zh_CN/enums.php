@@ -26,9 +26,11 @@ return [
         ResponseCodeEnum::SHARE_EXPIRED->value => '该分享已过期',
         ResponseCodeEnum::SHARE_PASSWORD_REQUIRED->value => '请输入提取码',
         ResponseCodeEnum::SHARE_PASSWORD_ERROR->value => '提取码错误',
+        ResponseCodeEnum::SHARE_ACCESS_DENIED->value => '无权访问该资源',
 
 
         ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK->value => '物理文件丢失，请联系管理员',
         ResponseCodeEnum::FILE_SAVE_ERROR->value => '文件保存失败',
+        ResponseCodeEnum::ZIP_CREATE_ERROR->value => '压缩包生成失败',
     ],
 ];

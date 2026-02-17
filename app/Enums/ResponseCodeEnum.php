@@ -25,8 +25,10 @@ enum ResponseCodeEnum: int
     case DOWNLOAD_FOLDER_NOT_SUPPORTED = 30006;
     case PARENT_NOT_FOLDER = 30011;
     case FILE_NOT_FOUND = 30012;
+    case SHARE_ACCESS_DENIED = 30013;
     case FILE_SAVE_ERROR = 50001;
     case FILE_NOT_FOUND_ON_DISK = 50002;
+    case ZIP_CREATE_ERROR = 50003;
 
     // 分享相关
     case SHARE_NOT_FOUND = 30007;     // 链接不存在

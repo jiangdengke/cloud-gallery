@@ -57,6 +57,121 @@ class ShareApiTest extends TestCase
             ->assertJsonPath('data.name', 'demo.jpg');
     }
 
+    public function test_share_folder_file_list_supports_nested_navigation(): void
+    {
+        $root = File::create([
+            'parent_id' => null,
+            'name' => 'Root',
+            'is_folder' => true,
+            'size' => 0,
+            'disk_path' => null,
+        ]);
+
+        $childFolder = File::create([
+            'parent_id' => $root->id,
+            'name' => 'Child',
+            'is_folder' => true,
+            'size' => 0,
+            'disk_path' => null,
+        ]);
+
+        $childFile = File::create([
+            'parent_id' => $childFolder->id,
+            'name' => 'note.txt',
+            'is_folder' => false,
+            'size' => 10,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/note.txt',
+        ]);
+
+        $share = FileShare::create([
+            'file_id' => $root->id,
+            'token' => 'tokennested',
+            'password' => null,
+            'expired_at' => null,
+        ]);
+
+        $rootList = $this->getJson("/api/shares/{$share->token}/files?parent_id={$root->id}");
+        $rootList
+            ->assertStatus(200)
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('data.root_id', $root->id);
+
+        $rootIds = collect($rootList->json('data.list'))->pluck('id')->all();
+        $this->assertContains($childFolder->id, $rootIds);
+
+        $childList = $this->getJson("/api/shares/{$share->token}/files?parent_id={$childFolder->id}");
+        $childList
+            ->assertStatus(200)
+            ->assertJsonPath('status', 'success');
+
+        $childIds = collect($childList->json('data.list'))->pluck('id')->all();
+        $this->assertContains($childFile->id, $childIds);
+
+        $outside = File::create([
+            'parent_id' => null,
+            'name' => 'Outside',
+            'is_folder' => true,
+            'size' => 0,
+            'disk_path' => null,
+        ]);
+
+        $forbidden = $this->getJson("/api/shares/{$share->token}/files?parent_id={$outside->id}");
+        $forbidden
+            ->assertJsonPath('code', ResponseCodeEnum::SHARE_ACCESS_DENIED->value);
+    }
+
+    public function test_share_download_allows_file_id_within_shared_folder(): void
+    {
+        Storage::fake('public');
+
+        $root = File::create([
+            'parent_id' => null,
+            'name' => 'Root',
+            'is_folder' => true,
+            'size' => 0,
+            'disk_path' => null,
+        ]);
+
+        $childFile = File::create([
+            'parent_id' => $root->id,
+            'name' => 'demo.txt',
+            'is_folder' => false,
+            'size' => 10,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/demo.txt',
+        ]);
+
+        Storage::disk('public')->put($childFile->disk_path, 'content');
+
+        $share = FileShare::create([
+            'file_id' => $root->id,
+            'token' => 'tokendownload',
+            'password' => null,
+            'expired_at' => null,
+        ]);
+
+        $download = $this->get("/api/shares/{$share->token}/download?file_id={$childFile->id}");
+        $download
+            ->assertStatus(200)
+            ->assertDownload('demo.txt');
+
+        $outsideFile = File::create([
+            'parent_id' => null,
+            'name' => 'secret.txt',
+            'is_folder' => false,
+            'size' => 10,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/secret.txt',
+        ]);
+
+        Storage::disk('public')->put($outsideFile->disk_path, 'content');
+
+        $forbidden = $this->getJson("/api/shares/{$share->token}/download?file_id={$outsideFile->id}");
+        $forbidden
+            ->assertJsonPath('code', ResponseCodeEnum::SHARE_ACCESS_DENIED->value);
+    }
+
     public function test_share_requires_password(): void
     {
         $file = File::create([
@@ -129,7 +244,7 @@ class ShareApiTest extends TestCase
             ->assertJsonPath('code', ResponseCodeEnum::SHARE_EXPIRED->value);
     }
 
-    public function test_share_download_rejects_folder(): void
+    public function test_share_download_folder_returns_zip(): void
     {
         $folder = File::create([
             'parent_id' => null,
@@ -146,10 +261,11 @@ class ShareApiTest extends TestCase
             'expired_at' => null,
         ]);
 
-        $response = $this->getJson("/api/shares/{$share->token}/download");
+        $response = $this->get("/api/shares/{$share->token}/download");
 
         $response
-            ->assertJsonPath('code', ResponseCodeEnum::DOWNLOAD_FOLDER_NOT_SUPPORTED->value);
+            ->assertStatus(200)
+            ->assertDownload('shared-folder.zip');
     }
 
     private function setApiKey(): string
