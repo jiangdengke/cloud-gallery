@@ -230,7 +230,7 @@ class FileController extends Controller
         $mimeType = $file->getMimeType();
         $extension = $file->getClientOriginalExtension();
 
-        // 4. 计算文件哈希（MD5） 后面实现秒传todo
+        // 4. 计算文件哈希（MD5），用于秒传/去重
         $hash = md5_file($file->getRealPath());
 
         // 5. 秒传/去重：如果数据库已有该 hash 且物理文件存在，直接复用 disk_path
