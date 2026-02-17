@@ -1,37 +1,26 @@
 # Cloud Gallery（云网盘）
 
-一个基于 **Laravel 11** + **Vue 3** 的轻量私有云盘/图集系统。支持公开浏览与管理后台分离，包含分享链接、图片/Markdown 预览、拖拽上传等能力。
+一个基于 **Laravel 11** + **Vue 3（Vite）** 的轻量私有云盘/图库项目：支持公开浏览与下载，管理端通过 `API_KEY` 进行写入操作（上传/新建文件夹/重命名/移动/删除/创建分享）。
 
-## ✨ 功能概览
+## 功能概览
 
-- **公开模式**：目录浏览、文件下载、图片预览、Markdown 渲染（目录内存在 `README.md` 时自动展示）。
-- **管理模式（API_KEY）**：上传文件、创建文件夹、重命名、移动、删除、创建分享链接。
-- **分享链接**：支持分享文件/文件夹；可设置提取码（4–6 位）和过期时间；文件夹支持多级浏览。
-- **下载**：文件直接下载；**文件夹在线打包为 ZIP 下载**。
-- **秒传/去重**：上传按文件哈希复用已存在的物理文件；删除时仅在无其它引用时删除物理文件。
+- 公开模式：目录浏览、文件下载、图片预览、目录内 `README.md` 渲染
+- 管理模式（`API_KEY`）：上传文件、新建文件夹、重命名、移动、删除、创建分享链接
+- 分享链接：支持文件/文件夹分享；可选提取码（4–6 位）与过期时间；文件夹支持多级浏览；支持打包 ZIP 下载
+- 秒传/去重：上传按内容哈希复用已存在物理文件；删除仅在无其他引用时删除物理文件
 
-## 🛠 技术栈
+## 前端目录
 
-- **Backend**：Laravel 11.x、PHP >= 8.2、MySQL 8.0+ / SQLite（可选）
-- **Frontend**：Vue 3、Vite、Ant Design Vue、Axios、Vue Router
-- **响应封装**：`jiannei/laravel-response`
+- 前端源码在 `web/`（独立 Vite 项目）
+- 生产环境构建产物会放到 Laravel 的 `public/` 下（Docker 镜像会自动完成这一步）
 
-## 🧭 前端目录说明
+## 运行方式
 
-- 前端源码仅在 `web/`（Vite 项目）。
-- 根目录不再保留 Laravel 默认的 `resources/js`、`resources/css` 以及 Vite/Tailwind 相关配置（避免两套前端并存）。
-- 生产构建会把 `web/dist` 产物复制到 `public/`，由 `routes/web.php` 将非 `/api` 的请求回落到 `public/index.html`（SPA）。
+### 方式 A：Docker（推荐，接近生产）
 
-## 🐳 Docker 部署（推荐）
+本项目的 `docker-compose.yml` **不包含数据库服务**，你需要在 `.env` 里配置 `DB_*` 连接到你自己的数据库（云 MySQL / 公司内网 MySQL / 本机 MySQL 等）。
 
-Dockerfile 会自动构建前端并复制到 `public/`，无需手动构建。
-
-> 注意：`docker-compose.yml` **不包含数据库服务**。请在 `.env` 中配置 `DB_*` 连接到你自己的数据库（例如云 MySQL、公司内网 MySQL 等）。
->
-> - 数据库在宿主机：`DB_HOST=host.docker.internal`（Docker Desktop 通常可用）
-> - 数据库在远程：填公网/内网地址即可
-
-1) 准备 `.env`（从示例复制后修改关键参数）：
+1) 准备环境变量文件
 
 ```bash
 cp .env.example .env
@@ -39,7 +28,7 @@ cp .env.example .env
 # Copy-Item .env.example .env
 ```
 
-然后至少修改这些配置：
+2) 修改 `.env`（至少）
 
 - `APP_URL=http://localhost:8080`
 - `API_KEY=your_secret_key`
@@ -50,13 +39,15 @@ cp .env.example .env
 - `DB_USERNAME=your_user`
 - `DB_PASSWORD=your_password`
 
-2) 启动：
+> 如果数据库在宿主机：Docker Desktop 通常可用 `DB_HOST=host.docker.internal`。
+
+3) 启动
 
 ```bash
 docker compose up -d --build
 ```
 
-3) 初始化（首次启动需要生成 `APP_KEY` 并迁移数据库）：
+4) 首次初始化（生成 `APP_KEY` + 执行迁移）
 
 ```bash
 docker compose exec app php artisan key:generate
@@ -65,44 +56,83 @@ docker compose exec app php artisan migrate --force
 
 访问：`http://localhost:8080`
 
-> `docker-compose.yml` 仅负责启动应用容器；上传文件会持久化在 volume：`storage-data`。
+> 上传文件会持久化在 compose volume：`storage-data`（映射到容器内 `storage/`）。
 
-## ✅ 使用说明
+### 方式 B：本地开发（Backend + Vite）
 
-- **管理登录**：首页右上角“管理登录”输入 `.env` 里的 `API_KEY`。
-- **创建分享**：管理模式下，对文件/文件夹右键 → **分享** → 复制链接。
-- **访问分享**：打开 `/s/<token>`；如设置了提取码会提示输入。  
-  - 分享文件夹：支持面包屑导航与“下载此文件夹”（ZIP）。  
-  - 分享文件：支持下载；图片/Markdown 在分享页可直接预览。
+要求：PHP（>= 8.2）、Composer、Node.js（建议 18+）。
 
-## 📦 存储与去重说明
+1) 安装依赖
 
-- 元数据：`files`、`file_shares` 表。
-- 物理文件：默认写入 `storage/app/public/uploads/<Y-m-d>/...`。
-- `public/storage` 通过 `php artisan storage:link` 映射到 `storage/app/public`。
-- 去重：上传会按内容哈希复用已有 `disk_path`；删除会在没有其它引用时再删除物理文件。
-- ZIP：文件夹下载时临时生成 ZIP（`storage/app/tmp`），响应发送后自动删除。
+```bash
+composer install
+npm --prefix web install
+```
 
-## 🧪 测试
+2) 准备 `.env`
+
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+3) 配置数据库并迁移
+
+- 使用 SQLite（适合快速跑起来）：
+  - 创建文件：`database/database.sqlite`
+  - `.env`：`DB_CONNECTION=sqlite`
+  - 执行：`php artisan migrate`
+- 使用 MySQL：按需配置 `.env` 的 `DB_*`，然后执行：`php artisan migrate`
+
+4) 启动（推荐用一个命令拉起整套开发栈）
+
+```bash
+composer run dev
+```
+
+该命令会同时启动：
+- `php artisan serve`
+- `php artisan queue:listen`
+- `php artisan pail`（实时查看日志）
+- `npm --prefix web run dev`（Vite）
+
+## 使用说明
+
+- 管理登录：首页右上角「管理登录」，输入 `.env` 中的 `API_KEY`
+- 分享：管理模式下对文件/文件夹右键 → 分享 → 复制链接（访问路径 `/s/<token>`）
+
+## 日志与排错
+
+- 实时日志：`php artisan pail --timeout=0`
+- 文件日志：`storage/logs/laravel.log`
+- 常见的「上传失败」：
+  - 没有设置/没带 `API_KEY`（管理操作会返回 401）
+  - PHP 上传限制（`upload_max_filesize` / `post_max_size`）
+
+### `php-local.ini` 有什么用？
+
+这是一个可选的本地 PHP 配置文件示例（常用于调大上传限制、超时时间等）。本机运行时可以用：
+
+```bash
+php -c php-local.ini artisan serve
+```
+
+（Docker 镜像内已经通过 `/usr/local/etc/php/conf.d/cloud-gallery.ini` 设置了上传相关参数。）
+
+## 清空已上传文件（开发环境）
+
+数据由两部分组成：数据库记录（`files` / `file_shares`）+ 物理文件（`storage/app/public/uploads`）。
+
+- 本地开发：建议直接执行 `php artisan migrate:fresh` 重新迁移；然后删除 `storage/app/public/uploads` 与 `storage/app/tmp`
+- Docker：`docker compose down -v` 会清空 `storage-data`（仅文件）；数据库需要你在自己的数据库侧清理
+
+## 测试
 
 ```bash
 php artisan test
 ```
 
-> 说明：Feature 测试依赖可用的数据库驱动与配置（例如 SQLite 需要启用 `pdo_sqlite` 扩展）。
+## License
 
-## 📂 目录结构
+MIT
 
-```
-/
-├── app/                  # Laravel 后端核心代码
-├── database/             # 迁移/工厂/种子
-├── public/               # Web 入口（生产需包含 index.html）
-├── routes/               # 路由（api.php / web.php）
-├── storage/              # 文件存储（app/public/uploads）
-└── web/                  # Vue 前端项目（Vite）
-```
-
-## 📄 License
-
-MIT License.

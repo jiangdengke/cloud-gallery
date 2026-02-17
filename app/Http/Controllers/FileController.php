@@ -54,7 +54,7 @@ class FileController extends Controller
             return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
         }
 
-        return Response::success(FileResource::make($file));
+        return Response::success(FileResource::make($file), '', ResponseCodeEnum::OK);
     }
     /**
      * 移动文件/文件夹
@@ -82,7 +82,7 @@ class FileController extends Controller
 
         // 如果目标目录和当前目录一样，什么都不做
         if ($file->parent_id == $targetParentId) {
-            return Response::success($file);
+            return Response::success($file, '', ResponseCodeEnum::OK);
         }
 
         // 逻辑检查，如果移动的是文件夹，不能移动到自己或者自己的子目录中
@@ -114,7 +114,7 @@ class FileController extends Controller
 
         // 执行移动
         $file->update(['parent_id' => $targetParentId]);
-        return Response::success($file);
+        return Response::success($file, '', ResponseCodeEnum::OK);
     }
 
     /**
@@ -134,7 +134,7 @@ class FileController extends Controller
         foreach ($files as $file) {
             $this->deleteRecursively($file);
         }
-        return Response::success(null);
+        return Response::success(null, '', ResponseCodeEnum::OK);
     }
 
     /**
@@ -182,7 +182,7 @@ class FileController extends Controller
 
         //如果名字没变，直接返回成功，省得查数据库
         if ($file->name === $newName) {
-            return Response::success($file);
+            return Response::success($file, '', ResponseCodeEnum::OK);
         }
 
         // 检查重名
@@ -199,7 +199,7 @@ class FileController extends Controller
         $file->update(['name' => $newName]);
 
         // 返回更新后的对象
-        return Response::success($file);
+        return Response::success($file, '', ResponseCodeEnum::OK);
     }
 
     /**
@@ -273,7 +273,7 @@ class FileController extends Controller
             'hash' => $hash,
         ]);
 
-        return Response::success($newFile);
+        return Response::success($newFile, '', ResponseCodeEnum::OK);
     }
     /**
      * 获取文件列表
@@ -355,6 +355,6 @@ class FileController extends Controller
         ]);
 
         // 5. 返回成功
-        return Response::created($folder);
+        return Response::success($folder, '', ResponseCodeEnum::OK);
     }
 }

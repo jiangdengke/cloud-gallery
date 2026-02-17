@@ -90,7 +90,7 @@ class ShareController extends Controller
         if (!$deleted) {
             return Response::fail('', ResponseCodeEnum::SHARE_NOT_FOUND);
         }
-        return Response::success([], '分享已取消');
+        return Response::success([], '分享已取消', ResponseCodeEnum::OK);
 
     }
 
@@ -140,7 +140,7 @@ class ShareController extends Controller
             return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK);
         }
         // 返回数据
-        return Response::success(ShareDetailResource::make($share));
+        return Response::success(ShareDetailResource::make($share), '', ResponseCodeEnum::OK);
     }
     /**
      * 下载分享的文件
@@ -241,7 +241,7 @@ class ShareController extends Controller
         ]);
 
         // 返回分享信息
-        return Response::success(ShareCreateResource::make($share));
+        return Response::success(ShareCreateResource::make($share), '', ResponseCodeEnum::OK);
     }
 
     private function isWithinRoot(File $file, File $root): bool
