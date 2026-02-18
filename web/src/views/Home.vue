@@ -1,7 +1,7 @@
 <template>
-  <div class="main-container">
-    <div class="header">
-      <div class="brand">
+    <div class="main-container">
+      <div class="header">
+      <div class="brand" @click="goHome">
         <cloud-server-outlined class="logo-icon" />
         <span class="title">Cloud Gallery</span>
       </div>
@@ -48,6 +48,8 @@ const router = useRouter();
 const showLoginModal = ref(false);
 const apiKeyInput = ref('');
 
+const goHome = () => router.push('/');
+
 const handleLogin = () => {
   if (!apiKeyInput.value) return;
   setApiKey(apiKeyInput.value);
@@ -78,6 +80,7 @@ const handleLogin = () => {
   font-size: 18px;
   font-weight: 600;
   color: inherit;
+  cursor: pointer;
 }
 .logo-icon {
   font-size: 24px;
