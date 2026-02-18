@@ -4,24 +4,46 @@
     <template v-if="!previewFile">
       <!-- 管理工具栏 -->
       <div class="toolbar" v-if="isAdmin">
-        <a-space>
-          <a-upload
-            :show-upload-list="false"
-            :customRequest="handleUpload"
-            :disabled="uploading"
-            multiple
-          >
-            <a-button type="primary" :loading="uploading">
-              <template #icon><upload-outlined /></template>
-              上传文件
+        <div class="toolbar-left">
+          <a-space>
+            <a-upload
+              :show-upload-list="false"
+              :customRequest="handleUpload"
+              :disabled="uploading"
+              multiple
+            >
+              <a-button type="primary" :loading="uploading">
+                <template #icon><upload-outlined /></template>
+                上传文件
+              </a-button>
+            </a-upload>
+
+            <a-button @click="openCreateFolder">
+              <template #icon><folder-add-outlined /></template>
+              新建文件夹
             </a-button>
-          </a-upload>
-          
-          <a-button @click="openCreateFolder">
-            <template #icon><folder-add-outlined /></template>
-            新建文件夹
-          </a-button>
-        </a-space>
+
+            <a-button :disabled="!canDownloadCurrentFolder" @click="downloadCurrentFolder">
+              <template #icon><download-outlined /></template>
+              下载当前文件夹
+            </a-button>
+
+            <a-button @click="refresh">
+              <template #icon><reload-outlined /></template>
+              刷新
+            </a-button>
+          </a-space>
+        </div>
+        <div class="toolbar-right">
+          <a-input
+            v-model:value="searchKeyword"
+            allowClear
+            placeholder="搜索当前目录"
+            style="width: 240px;"
+          >
+            <template #prefix><search-outlined /></template>
+          </a-input>
+        </div>
       </div>
 
       <!-- 面包屑 -->
@@ -34,7 +56,7 @@
       <!-- 文件列表 -->
       <a-card :bordered="false" class="file-card">
         <a-table
-          :dataSource="files"
+          :dataSource="displayFiles"
           :columns="columns"
           :loading="loading"
           rowKey="id"
@@ -68,6 +90,38 @@
              <!-- 时间列 -->
              <template v-else-if="column.key === 'updated_at'">
               <span class="date-text">{{ formatDate(record.updated_at) }}</span>
+            </template>
+
+            <template v-else-if="column.key === 'actions'">
+              <a-dropdown trigger="click" placement="bottomRight">
+                <a-button type="text" class="action-btn" @click.stop>
+                  <more-outlined />
+                </a-button>
+                <template #overlay>
+                  <a-menu @click="({ key }) => handleRowAction(key, record)">
+                    <a-menu-item key="download">
+                      <download-outlined /> 下载
+                    </a-menu-item>
+                    <a-menu-item key="share">
+                      <share-alt-outlined /> 分享
+                    </a-menu-item>
+                    <a-menu-item key="access">
+                      <lock-outlined /> 访问设置
+                    </a-menu-item>
+                    <a-menu-item key="rename">
+                      <edit-outlined /> 重命名
+                    </a-menu-item>
+                    <a-menu-item key="move">
+                      <scissor-outlined /> 移动
+                    </a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item key="delete">
+                      <delete-outlined style="color: #ff4d4f;" />
+                      <span style="color: #ff4d4f;">删除</span>
+                    </a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
             </template>
           </template>
         </a-table>
@@ -244,6 +298,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useFileExplorer } from '../composables/useFileExplorer';
+import { message } from 'ant-design-vue';
 import { 
   FolderFilled, 
   FileOutlined,
@@ -257,7 +312,10 @@ import {
   ArrowLeftOutlined,
   ShareAltOutlined,
   LockOutlined,
-  EyeInvisibleOutlined
+  EyeInvisibleOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  MoreOutlined
 } from '@ant-design/icons-vue';
 import 'github-markdown-css/github-markdown.css';
 
@@ -291,6 +349,7 @@ const {
 
 // --- UI 独有状态 ---
 const contextMenu = ref({ visible: false, x: 0, y: 0, record: null });
+const searchKeyword = ref('');
 
 // 初始化
 onMounted(() => {
@@ -299,12 +358,79 @@ onMounted(() => {
 
 // 表格列定义
 const columns = computed(() => {
-  return [
+  const baseColumns = [
     { title: '名称', key: 'name', dataIndex: 'name' }, // 合并图标到这一列
     { title: '大小', key: 'size', dataIndex: 'size', width: 120, align: 'right' },
     { title: '修改时间', key: 'updated_at', dataIndex: 'updated_at', width: 180, align: 'right' },
   ];
+
+  if (props.isAdmin) {
+    baseColumns.push({ title: '', key: 'actions', width: 64, align: 'right' });
+  }
+
+  return baseColumns;
 });
+
+const displayFiles = computed(() => {
+  const keyword = (searchKeyword.value || '').toString().trim().toLowerCase();
+  if (!keyword) return files.value;
+
+  return files.value.filter((file) => (file?.name || '').toString().toLowerCase().includes(keyword));
+});
+
+const currentBreadcrumb = computed(() => breadcrumbs.value[breadcrumbs.value.length - 1] ?? null);
+
+const canDownloadCurrentFolder = computed(() => {
+  return currentBreadcrumb.value && currentBreadcrumb.value.id !== null && currentBreadcrumb.value.id !== undefined;
+});
+
+const downloadCurrentFolder = async () => {
+  const current = currentBreadcrumb.value;
+  if (!current || current.id === null || current.id === undefined) {
+    message.warning('根目录不支持打包下载');
+    return;
+  }
+
+  await downloadFile({
+    id: current.id,
+    name: current.name || 'folder',
+    is_folder: true,
+    is_protected: false,
+    is_public: true,
+  });
+};
+
+const refresh = () => {
+  const id = currentBreadcrumb.value?.id ?? null;
+  fetchFiles(id);
+};
+
+const handleRowAction = async (action, record) => {
+  if (!record) return;
+
+  switch (action) {
+    case 'download':
+      await downloadFile(record);
+      return;
+    case 'share':
+      openShare(record);
+      return;
+    case 'access':
+      openAccessSettings(record);
+      return;
+    case 'rename':
+      openRename(record);
+      return;
+    case 'move':
+      openMove(record);
+      return;
+    case 'delete':
+      handleDelete(record);
+      return;
+    default:
+      return;
+  }
+};
 
 // 点击行处理
 const handleRowClick = (record) => {
@@ -369,6 +495,18 @@ const handleMenuAccess = () => {
   margin-bottom: 24px;
   display: flex;
   gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+}
+
+.action-btn {
+  padding: 0 8px;
 }
 .breadcrumb {
   margin-bottom: 24px;

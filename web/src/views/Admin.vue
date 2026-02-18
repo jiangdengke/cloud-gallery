@@ -1,7 +1,7 @@
 <template>
-  <div class="main-container">
-    <div class="header">
-      <div class="brand">
+    <div class="main-container">
+      <div class="header">
+      <div class="brand" @click="goHome">
         <cloud-server-outlined class="logo-icon" />
         <span class="title">Cloud Gallery 管理后台</span>
       </div>
@@ -40,6 +40,8 @@ import { isDark, toggleTheme } from '../themeState';
 
 const router = useRouter();
 
+const goHome = () => router.push('/');
+
 const handleLogout = () => {
   setApiKey(null);
   message.success('已退出管理模式');
@@ -68,6 +70,7 @@ const handleLogout = () => {
   font-size: 18px;
   font-weight: 600;
   color: inherit;
+  cursor: pointer;
 }
 .logo-icon {
   font-size: 24px;
