@@ -76,7 +76,7 @@
                   <lock-outlined /> 加密
                 </a-tag>
                 <a-tag v-if="isAdmin && record.is_public === false" color="red" class="meta-tag">
-                  <eye-invisible-outlined /> 私有
+                  <eye-invisible-outlined /> 隐藏
                 </a-tag>
               </div>
             </template>
@@ -252,15 +252,15 @@
         @cancel="cancelAccessModal"
       >
         <a-form layout="vertical">
-          <a-form-item label="公开">
-            <a-switch v-model:checked="accessIsPublic" checked-children="公开" un-checked-children="私有" />
+          <a-form-item label="公开列表可见">
+            <a-switch v-model:checked="accessIsPublic" checked-children="可见" un-checked-children="隐藏" />
           </a-form-item>
 
           <template v-if="accessIsPublic">
             <a-form-item label="提取码（可选）">
               <a-input-password
                 v-model:value="accessPasswordInput"
-                placeholder="留空=不修改；4-6 位=设置/更新"
+                placeholder="留空=不修改；4-6 位=设置/更新 Key"
                 :maxlength="6"
               />
               <a-checkbox
@@ -268,12 +268,12 @@
                 style="margin-top: 8px;"
                 :disabled="!accessTarget?.is_protected"
               >
-                清除提取码
+                清除 Key
               </a-checkbox>
             </a-form-item>
           </template>
           <template v-else>
-            <a-alert type="info" show-icon message="私有内容仅管理员可见，提取码会被清除" />
+            <a-alert type="info" show-icon message="隐藏内容仅管理员可见，Key 会被清除" />
           </template>
         </a-form>
       </a-modal>
