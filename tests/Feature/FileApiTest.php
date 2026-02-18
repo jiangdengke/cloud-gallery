@@ -289,7 +289,7 @@ class FileApiTest extends TestCase
         Storage::disk('public')->assertMissing($child->disk_path);
     }
 
-    public function test_public_list_hides_private_items(): void
+    public function test_public_list_includes_private_items(): void
     {
         $public = File::create([
             'parent_id' => null,
@@ -306,6 +306,7 @@ class FileApiTest extends TestCase
             'name' => 'private.txt',
             'is_folder' => false,
             'is_public' => false,
+            'password_hash' => Hash::make('1234'),
             'size' => 1,
             'mime_type' => 'text/plain',
             'disk_path' => 'uploads/private.txt',
@@ -318,33 +319,18 @@ class FileApiTest extends TestCase
             ->assertJsonPath('status', 'success')
             ->assertJsonPath('code', ResponseCodeEnum::OK->value);
 
-        $ids = collect($response->json('data.list'))->pluck('id')->all();
+        $list = collect($response->json('data.list'));
+        $ids = $list->pluck('id')->all();
         $this->assertContains($public->id, $ids);
-        $this->assertNotContains($private->id, $ids);
+        $this->assertContains($private->id, $ids);
+
+        $privateRow = $list->firstWhere('id', $private->id);
+        $this->assertIsArray($privateRow);
+        $this->assertFalse((bool) ($privateRow['is_public'] ?? true));
+        $this->assertTrue((bool) ($privateRow['is_protected'] ?? false));
     }
 
-    public function test_public_detail_denies_private_item(): void
-    {
-        $private = File::create([
-            'parent_id' => null,
-            'name' => 'private.txt',
-            'is_folder' => false,
-            'is_public' => false,
-            'size' => 1,
-            'mime_type' => 'text/plain',
-            'disk_path' => 'uploads/private.txt',
-        ]);
-
-        $detail = $this->getJson("/api/files/{$private->id}");
-        $detail
-            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_DENIED->value);
-
-        $download = $this->getJson("/api/files/{$private->id}/download");
-        $download
-            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_DENIED->value);
-    }
-
-    public function test_protected_file_requires_password_for_detail_and_download(): void
+    public function test_private_file_requires_password_for_detail_and_download(): void
     {
         Storage::fake('public');
 
@@ -352,7 +338,7 @@ class FileApiTest extends TestCase
             'parent_id' => null,
             'name' => 'secret.txt',
             'is_folder' => false,
-            'is_public' => true,
+            'is_public' => false,
             'password_hash' => Hash::make('1234'),
             'size' => 7,
             'mime_type' => 'text/plain',
@@ -378,13 +364,13 @@ class FileApiTest extends TestCase
             ->assertDownload('secret.txt');
     }
 
-    public function test_protected_folder_requires_password_to_list_children(): void
+    public function test_private_folder_requires_password_to_list_children(): void
     {
         $folder = File::create([
             'parent_id' => null,
             'name' => 'Protected',
             'is_folder' => true,
-            'is_public' => true,
+            'is_public' => false,
             'password_hash' => Hash::make('1234'),
             'size' => 0,
             'disk_path' => null,
@@ -438,6 +424,7 @@ class FileApiTest extends TestCase
             'name' => 'private.txt',
             'is_folder' => false,
             'is_public' => false,
+            'password_hash' => Hash::make('1234'),
             'size' => 1,
             'mime_type' => 'text/plain',
             'disk_path' => 'uploads/private.txt',
@@ -448,7 +435,7 @@ class FileApiTest extends TestCase
             'parent_id' => null,
             'name' => 'protected.txt',
             'is_folder' => false,
-            'is_public' => true,
+            'is_public' => false,
             'password_hash' => Hash::make('1234'),
             'size' => 1,
             'mime_type' => 'text/plain',

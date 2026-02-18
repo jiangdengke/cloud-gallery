@@ -324,7 +324,6 @@ class FileController extends Controller
         $files = File::where('parent_id', $parentId)
             ->orderBy('is_folder', 'desc')
             ->orderBy('created_at', 'desc')
-            ->when(!$isAdmin, fn ($q) => $q->where('is_public', true))
             ->get();
 
         // 5. 统一返回
@@ -405,25 +404,33 @@ class FileController extends Controller
             'is_public' => $isPublic,
         ];
 
-        if (!$isPublic) {
+        if ($isPublic) {
             $updates['password_hash'] = null;
-        } elseif ($request->has('password')) {
-            $password = $request->input('password');
+        } else {
+            if ($this->hasProtectedAncestor($file) || $this->hasProtectedDescendant($file)) {
+                return Response::fail('', ResponseCodeEnum::ACCESS_PASSWORD_NESTED_NOT_ALLOWED);
+            }
 
-            if ($password === null) {
-                $updates['password_hash'] = null;
-            } else {
-                if ($this->hasProtectedAncestor($file) || $this->hasProtectedDescendant($file)) {
-                    return Response::fail('', ResponseCodeEnum::ACCESS_PASSWORD_NESTED_NOT_ALLOWED);
+            if ($request->has('password')) {
+                $password = $request->input('password');
+                if (!is_string($password) || trim($password) === '') {
+                    return Response::fail('', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED);
                 }
 
                 $updates['password_hash'] = Hash::make($password);
+            } elseif (!$file->password_hash) {
+                return Response::fail('', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED);
             }
         }
 
         $file->update($updates);
 
         return Response::success(FileResource::make($file->fresh()), '', ResponseCodeEnum::OK);
+    }
+
+    private function isProtectedNode(File $file): bool
+    {
+        return !$file->is_public || ($file->password_hash !== null && $file->password_hash !== '');
     }
 
     private function hasProtectedAncestor(File $file): bool
@@ -436,7 +443,7 @@ class FileController extends Controller
                 break;
             }
 
-            if ($current->password_hash) {
+            if ($this->isProtectedNode($current)) {
                 return true;
             }
         }
@@ -455,10 +462,10 @@ class FileController extends Controller
         while (!empty($queue)) {
             $children = File::query()
                 ->whereIn('parent_id', $queue)
-                ->get(['id', 'is_folder', 'password_hash']);
+                ->get(['id', 'is_folder', 'is_public', 'password_hash']);
 
             foreach ($children as $child) {
-                if ($child->password_hash) {
+                if ($this->isProtectedNode($child)) {
                     return true;
                 }
             }
@@ -502,11 +509,7 @@ class FileController extends Controller
         $current = $file;
 
         while ($current) {
-            if (!$current->is_public) {
-                return Response::fail('', ResponseCodeEnum::ACCESS_DENIED);
-            }
-
-            if ($current->password_hash) {
+            if ($this->isProtectedNode($current)) {
                 $protectedNodes[] = $current;
             }
 
@@ -522,6 +525,10 @@ class FileController extends Controller
         }
 
         if (count($protectedNodes) > 1) {
+            return Response::fail('', ResponseCodeEnum::ACCESS_DENIED);
+        }
+
+        if (!$protectedNodes[0]->password_hash) {
             return Response::fail('', ResponseCodeEnum::ACCESS_DENIED);
         }
 

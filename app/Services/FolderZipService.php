@@ -36,7 +36,11 @@ class FolderZipService
         $zip->addEmptyDir($zipPath);
 
         $children = File::where('parent_id', $folder->id)
-            ->when($publicOnly, fn ($q) => $q->where('is_public', true))
+            ->when($publicOnly, fn ($q) => $q
+                ->where('is_public', true)
+                ->where(function ($query) {
+                    $query->whereNull('password_hash')->orWhere('password_hash', '');
+                }))
             ->orderBy('is_folder', 'desc')
             ->orderBy('name')
             ->get();

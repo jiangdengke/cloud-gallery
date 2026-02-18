@@ -15,13 +15,15 @@ class FileResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $isPublic = (bool) ($this->is_public && ($this->password_hash === null || $this->password_hash === ''));
+
         return [
             'id' => $this->id,
             'parent_id' => $this->parent_id,
             'name' => $this->name,
             'is_folder' => (bool) $this->is_folder,
-            'is_public' => (bool) $this->is_public,
-            'is_protected' => (bool) ($this->password_hash !== null && $this->password_hash !== ''),
+            'is_public' => $isPublic,
+            'is_protected' => !$isPublic,
             'size' => $this->size,
             'mime_type' => $this->mime_type,
             'created_at' => $this->created_at?->toDateTimeString(),
@@ -29,4 +31,3 @@ class FileResource extends JsonResource
         ];
     }
 }
-

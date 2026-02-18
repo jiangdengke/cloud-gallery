@@ -72,11 +72,8 @@
                 <file-image-outlined v-else-if="isImage(record)" class="file-icon image" />
                 <file-outlined v-else class="file-icon file" />
                 <span class="file-name">{{ record.name }}</span>
-                <a-tag v-if="isAdmin && record.is_protected" color="orange" class="meta-tag">
-                  <lock-outlined /> 加密
-                </a-tag>
-                <a-tag v-if="isAdmin && record.is_public === false" color="red" class="meta-tag">
-                  <eye-invisible-outlined /> 隐藏
+                <a-tag v-if="record.is_public === false" color="orange" class="meta-tag">
+                  <lock-outlined /> 私有
                 </a-tag>
               </div>
             </template>
@@ -252,28 +249,22 @@
         @cancel="cancelAccessModal"
       >
         <a-form layout="vertical">
-          <a-form-item label="公开列表可见">
-            <a-switch v-model:checked="accessIsPublic" checked-children="可见" un-checked-children="隐藏" />
+          <a-form-item label="访问权限">
+            <a-switch v-model:checked="accessIsPublic" checked-children="公开" un-checked-children="私有" />
           </a-form-item>
 
           <template v-if="accessIsPublic">
-            <a-form-item label="提取码（可选）">
-              <a-input-password
-                v-model:value="accessPasswordInput"
-                placeholder="留空=不修改；4-6 位=设置/更新 Key"
-                :maxlength="6"
-              />
-              <a-checkbox
-                v-model:checked="accessPasswordClear"
-                style="margin-top: 8px;"
-                :disabled="!accessTarget?.is_protected"
-              >
-                清除 Key
-              </a-checkbox>
-            </a-form-item>
+            <a-alert type="success" show-icon message="公开内容无需 Key，即可访问/下载" />
           </template>
           <template v-else>
-            <a-alert type="info" show-icon message="隐藏内容仅管理员可见，Key 会被清除" />
+            <a-form-item label="Key（4-6 位）">
+              <a-input-password
+                v-model:value="accessPasswordInput"
+                placeholder="留空=不修改；设置/重置 Key"
+                :maxlength="6"
+              />
+            </a-form-item>
+            <a-alert type="info" show-icon message="私有内容仍会出现在列表中，但访问/下载需要 Key" />
           </template>
         </a-form>
       </a-modal>
@@ -281,7 +272,7 @@
 
     <a-modal
       v-model:open="showUnlockModal"
-      title="需要 Key（提取码）"
+      title="需要 Key"
       @ok="submitUnlockPassword"
       @cancel="cancelUnlockModal"
     >
@@ -312,7 +303,6 @@ import {
   ArrowLeftOutlined,
   ShareAltOutlined,
   LockOutlined,
-  EyeInvisibleOutlined,
   ReloadOutlined,
   SearchOutlined,
   MoreOutlined
@@ -335,7 +325,7 @@ const {
   showShareModal, shareTarget, sharePassword, shareExpiredAt, shareCreating, shareResult,
   uploading,
   showUnlockModal, unlockPasswordInput, submitUnlockPassword, cancelUnlockModal,
-  showAccessModal, accessTarget, accessIsPublic, accessPasswordInput, accessPasswordClear, accessSaving,
+  showAccessModal, accessTarget, accessIsPublic, accessPasswordInput, accessSaving,
   openAccessSettings, handleAccessSave, cancelAccessModal,
   fetchFiles, openCreateFolder, handleCreateFolder,
   openRename, handleRename, handleDelete,

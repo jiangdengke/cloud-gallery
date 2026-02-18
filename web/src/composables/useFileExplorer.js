@@ -29,10 +29,10 @@ export function useFileExplorer(options = {}) {
   ]);
   const readmeContent = ref(''); // 当前目录下的 README 内容
 
-  // --- 访问控制（公开/私有/加密） ---
+  // --- 访问控制（公开/私有） ---
   const passwordById = ref({});
 
-  // 解锁（输入提取码）弹窗
+  // 解锁（输入 Key）弹窗
   const showUnlockModal = ref(false);
   const unlockPasswordInput = ref('');
   const unlockTarget = ref(null);
@@ -42,8 +42,8 @@ export function useFileExplorer(options = {}) {
   const showAccessModal = ref(false);
   const accessTarget = ref(null);
   const accessIsPublic = ref(true);
+  const accessInitialIsPublic = ref(true);
   const accessPasswordInput = ref('');
-  const accessPasswordClear = ref(false);
   const accessSaving = ref(false);
 
   // --- 弹窗控制状态 ---
@@ -227,7 +227,7 @@ export function useFileExplorer(options = {}) {
     if (!password) return;
 
     if (password.length < 4 || password.length > 6) {
-      message.warning('提取码长度应为 4-6 位');
+      message.warning('Key 长度应为 4-6 位');
       return;
     }
 
@@ -284,8 +284,8 @@ export function useFileExplorer(options = {}) {
 
     accessTarget.value = record;
     accessIsPublic.value = !!record.is_public;
+    accessInitialIsPublic.value = !!record.is_public;
     accessPasswordInput.value = '';
-    accessPasswordClear.value = false;
     showAccessModal.value = true;
   };
 
@@ -293,7 +293,7 @@ export function useFileExplorer(options = {}) {
     showAccessModal.value = false;
     accessTarget.value = null;
     accessPasswordInput.value = '';
-    accessPasswordClear.value = false;
+    accessInitialIsPublic.value = true;
   };
 
   const handleAccessSave = async () => {
@@ -301,9 +301,14 @@ export function useFileExplorer(options = {}) {
 
     const password = (accessPasswordInput.value || '').toString().trim();
 
-    if (accessIsPublic.value && !accessPasswordClear.value && password) {
-      if (password.length < 4 || password.length > 6) {
-        message.warning('提取码长度应为 4-6 位');
+    if (!accessIsPublic.value) {
+      if (password && (password.length < 4 || password.length > 6)) {
+        message.warning('Key 长度应为 4-6 位');
+        return;
+      }
+
+      if (!password && accessInitialIsPublic.value) {
+        message.warning('请设置 Key（4-6 位）');
         return;
       }
     }
@@ -314,17 +319,13 @@ export function useFileExplorer(options = {}) {
         isPublic: accessIsPublic.value,
       };
 
-      if (!accessIsPublic.value) {
-        // 私有：后端会自动清除提取码
-      } else if (accessPasswordClear.value) {
-        payload.password = null;
-      } else if (password) {
+      if (!accessIsPublic.value && password) {
         payload.password = password;
       }
 
       const res = await updateAccess(accessTarget.value.id, payload);
       if (res.code === 20000) {
-        message.success('访问设置已更新');
+        message.success('访问权限已更新');
         cancelAccessModal();
         await fetchFiles(currentParentId.value);
         return;
@@ -800,7 +801,6 @@ export function useFileExplorer(options = {}) {
     accessTarget,
     accessIsPublic,
     accessPasswordInput,
-    accessPasswordClear,
     accessSaving,
     openAccessSettings,
     handleAccessSave,
