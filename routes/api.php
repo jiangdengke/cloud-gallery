@@ -42,6 +42,7 @@ Route::middleware(['auth.key'])->group(function () {
         Route::post('/rename', [FileController::class, 'rename']); // 重命名文件或文件夹
         Route::delete('/delete', [FileController::class, 'delete']); // 删除
         Route::post('/move', [FileController::class, 'move']); // 移动文件或文件夹
+        Route::post('/access', [FileController::class, 'updateAccess']); // 访问控制（公开/私有/提取码）
     });
 
 

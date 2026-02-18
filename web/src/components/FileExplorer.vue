@@ -50,6 +50,12 @@
                 <file-image-outlined v-else-if="isImage(record)" class="file-icon image" />
                 <file-outlined v-else class="file-icon file" />
                 <span class="file-name">{{ record.name }}</span>
+                <a-tag v-if="record.is_protected" color="orange" class="meta-tag">
+                  <lock-outlined /> 加密
+                </a-tag>
+                <a-tag v-if="isAdmin && record.is_public === false" color="red" class="meta-tag">
+                  <eye-invisible-outlined /> 私有
+                </a-tag>
               </div>
             </template>
 
@@ -88,7 +94,7 @@
           </a-button>
         </div>
         <div class="preview-body">
-          <img :src="`/api/files/${previewFile.id}/download`" class="preview-img" alt="preview" />
+          <img :src="previewSrc" class="preview-img" alt="preview" />
         </div>
       </div>
     </template>
@@ -113,6 +119,9 @@
         </div>
         <div class="menu-item" @click="handleMenuShare">
           <share-alt-outlined /> 分享
+        </div>
+        <div class="menu-item" @click="handleMenuAccess">
+          <lock-outlined /> 访问设置
         </div>
         <div class="menu-item delete" @click="handleMenuDelete">
           <delete-outlined /> 删除
@@ -180,14 +189,61 @@
           </div>
         </template>
       </a-modal>
+
+      <a-modal
+        v-model:open="showAccessModal"
+        :title="`访问设置${accessTarget?.name ? ' - ' + accessTarget.name : ''}`"
+        :confirmLoading="accessSaving"
+        @ok="handleAccessSave"
+        @cancel="cancelAccessModal"
+      >
+        <a-form layout="vertical">
+          <a-form-item label="公开">
+            <a-switch v-model:checked="accessIsPublic" checked-children="公开" un-checked-children="私有" />
+          </a-form-item>
+
+          <template v-if="accessIsPublic">
+            <a-form-item label="提取码（可选）">
+              <a-input-password
+                v-model:value="accessPasswordInput"
+                placeholder="留空=不修改；4-6 位=设置/更新"
+                :maxlength="6"
+              />
+              <a-checkbox
+                v-model:checked="accessPasswordClear"
+                style="margin-top: 8px;"
+                :disabled="!accessTarget?.is_protected"
+              >
+                清除提取码
+              </a-checkbox>
+            </a-form-item>
+          </template>
+          <template v-else>
+            <a-alert type="info" show-icon message="私有内容仅管理员可见，提取码会被清除" />
+          </template>
+        </a-form>
+      </a-modal>
     </template>
+
+    <a-modal
+      v-model:open="showUnlockModal"
+      title="请输入提取码"
+      @ok="submitUnlockPassword"
+      @cancel="cancelUnlockModal"
+    >
+      <a-input-password
+        v-model:value="unlockPasswordInput"
+        placeholder="提取码（4-6 位）"
+        :maxlength="6"
+        @pressEnter="submitUnlockPassword"
+      />
+    </a-modal>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useFileExplorer } from '../composables/useFileExplorer';
-import { Modal } from 'ant-design-vue';
 import { 
   FolderFilled, 
   FileOutlined,
@@ -199,7 +255,9 @@ import {
   ScissorOutlined,
   DownloadOutlined,
   ArrowLeftOutlined,
-  ShareAltOutlined
+  ShareAltOutlined,
+  LockOutlined,
+  EyeInvisibleOutlined
 } from '@ant-design/icons-vue';
 import 'github-markdown-css/github-markdown.css';
 
@@ -218,14 +276,18 @@ const {
   showMoveModal, moveTargetId, treeData, treeLoading,
   showShareModal, shareTarget, sharePassword, shareExpiredAt, shareCreating, shareResult,
   uploading,
+  showUnlockModal, unlockPasswordInput, submitUnlockPassword, cancelUnlockModal,
+  showAccessModal, accessTarget, accessIsPublic, accessPasswordInput, accessPasswordClear, accessSaving,
+  openAccessSettings, handleAccessSave, cancelAccessModal,
   fetchFiles, openCreateFolder, handleCreateFolder,
   openRename, handleRename, handleDelete,
   openMove, handleMove, onLoadTreeData,
   handleUpload, handleBreadcrumbClick,
   openShare, handleShareOk, copyShareLink,
   formatSize, formatDate, isImage, downloadFile,
-  previewFile, openPreview, closePreview 
-} = useFileExplorer();
+  previewFile, previewSrc, closePreview,
+  handleItemClick
+} = useFileExplorer({ isAdmin: props.isAdmin });
 
 // --- UI 独有状态 ---
 const contextMenu = ref({ visible: false, x: 0, y: 0, record: null });
@@ -247,14 +309,7 @@ const columns = computed(() => {
 // 点击行处理
 const handleRowClick = (record) => {
   closeContextMenu();
-  if (record.is_folder) {
-    breadcrumbs.value.push({ id: record.id, name: record.name });
-    fetchFiles(record.id);
-  } else if (isImage(record)) {
-    openPreview(record);
-  } else {
-    downloadFile(record);
-  }
+  handleItemClick(record);
 };
 
 // 自定义行事件
@@ -302,6 +357,11 @@ const handleMenuShare = () => {
   if (contextMenu.value.record) openShare(contextMenu.value.record);
   closeContextMenu();
 };
+
+const handleMenuAccess = () => {
+  if (contextMenu.value.record) openAccessSettings(contextMenu.value.record);
+  closeContextMenu();
+};
 </script>
 
 <style scoped>
@@ -343,6 +403,10 @@ const handleMenuShare = () => {
   display: flex;
   align-items: center;
   gap: 16px; /* 增大间距 */
+}
+
+.meta-tag {
+  margin-left: 4px;
 }
 
 .file-icon {

@@ -13,7 +13,7 @@ class FolderZipService
     /**
      * @return array{0: string, 1: string} zipPath, downloadName
      */
-    public function createZipForFolder(File $folder): array
+    public function createZipForFolder(File $folder, bool $publicOnly = false): array
     {
         $zipPath = $this->createTempZipPath();
 
@@ -24,18 +24,19 @@ class FolderZipService
         }
 
         $rootName = $this->sanitizeZipSegment($folder->name ?: 'folder');
-        $this->addFolderToZip($zip, $folder, $rootName);
+        $this->addFolderToZip($zip, $folder, $rootName, $publicOnly);
 
         $zip->close();
 
         return [$zipPath, $rootName . '.zip'];
     }
 
-    private function addFolderToZip(ZipArchive $zip, File $folder, string $zipPath): void
+    private function addFolderToZip(ZipArchive $zip, File $folder, string $zipPath, bool $publicOnly): void
     {
         $zip->addEmptyDir($zipPath);
 
         $children = File::where('parent_id', $folder->id)
+            ->when($publicOnly, fn ($q) => $q->where('is_public', true))
             ->orderBy('is_folder', 'desc')
             ->orderBy('name')
             ->get();
@@ -45,7 +46,7 @@ class FolderZipService
             $childZipPath = $zipPath . '/' . $childName;
 
             if ($child->is_folder) {
-                $this->addFolderToZip($zip, $child, $childZipPath);
+                $this->addFolderToZip($zip, $child, $childZipPath, $publicOnly);
                 continue;
             }
 
@@ -84,4 +85,3 @@ class FolderZipService
         return $name === '' ? 'item' : $name;
     }
 }
-

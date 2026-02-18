@@ -9,6 +9,7 @@ use App\Services\FolderZipService;
 use Illuminate\Http\Request;
 use Jiannei\Response\Laravel\Support\Facades\Response;
 use App\Enums\ResponseCodeEnum;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 class FileController extends Controller
 {
@@ -17,17 +18,22 @@ class FileController extends Controller
      * GET /api/files/{id}/download
      */
 
-    public function download($id)
+    public function download(Request $request, $id)
     {
         $file = File::find($id);
         if (!$file) {
             return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
         }
 
+        $isAdmin = $this->isAdminRequest($request);
+        if ($accessError = $this->resolveAccessError($file, $request, $isAdmin)) {
+            return $accessError;
+        }
+
         // 检查是否为文件夹
         if ($file->is_folder) {
             try {
-                [$zipPath, $downloadName] = app(FolderZipService::class)->createZipForFolder($file);
+                [$zipPath, $downloadName] = app(FolderZipService::class)->createZipForFolder($file, publicOnly: !$isAdmin);
             } catch (\Throwable $e) {
                 return Response::fail('', ResponseCodeEnum::ZIP_CREATE_ERROR);
             }
@@ -46,12 +52,17 @@ class FileController extends Controller
      * GET /api/files/{id}
      */
 
-    public function detail($id)
+    public function detail(Request $request, $id)
     {
         // 自动查找，找不到返回统一错误
         $file = File::find($id);
         if (!$file) {
             return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
+        }
+
+        $isAdmin = $this->isAdminRequest($request);
+        if ($accessError = $this->resolveAccessError($file, $request, $isAdmin)) {
+            return $accessError;
         }
 
         return Response::success(FileResource::make($file), '', ResponseCodeEnum::OK);
@@ -208,6 +219,8 @@ class FileController extends Controller
      */
     public function upload(Request $request)
     {
+        $isAdmin = $this->isAdminRequest($request);
+
         // 1. 验证
         $request->validate([
             'file' => 'required|file|max:102400', // 最大 100MB
@@ -219,6 +232,10 @@ class FileController extends Controller
             $parent = File::find($request->parent_id);
             if (!$parent || !$parent->is_folder) {
                 return Response::fail('', ResponseCodeEnum::PARENT_NOT_FOLDER);
+            }
+
+            if ($accessError = $this->resolveAccessError($parent, $request, $isAdmin)) {
+                return $accessError;
             }
         }
 
@@ -287,6 +304,8 @@ class FileController extends Controller
         ]);
 
         // 2. 获取参数 parent_id
+        $isAdmin = $this->isAdminRequest($request);
+
         $parentId = $request->input('parent_id');
 
         // 3. parent_id 必须是文件夹
@@ -295,12 +314,17 @@ class FileController extends Controller
             if (!$parent || !$parent->is_folder) {
                 return Response::fail('', ResponseCodeEnum::PARENT_NOT_FOLDER);
             }
+
+            if ($accessError = $this->resolveAccessError($parent, $request, $isAdmin)) {
+                return $accessError;
+            }
         }
 
         // 4. 查询数据库
         $files = File::where('parent_id', $parentId)
             ->orderBy('is_folder', 'desc')
             ->orderBy('created_at', 'desc')
+            ->when(!$isAdmin, fn ($q) => $q->where('is_public', true))
             ->get();
 
         // 5. 统一返回
@@ -356,5 +380,162 @@ class FileController extends Controller
 
         // 5. 返回成功
         return Response::success($folder, '', ResponseCodeEnum::OK);
+    }
+
+    /**
+     * 更新文件/文件夹访问控制
+     * POST /api/files/access
+     */
+    public function updateAccess(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|exists:files,id',
+            'is_public' => 'required|boolean',
+            'password' => 'sometimes|nullable|string|min:4|max:6',
+        ]);
+
+        $file = File::find($request->id);
+        if (!$file) {
+            return Response::fail('', ResponseCodeEnum::FILE_NOT_FOUND);
+        }
+
+        $isPublic = (bool) $request->boolean('is_public');
+
+        $updates = [
+            'is_public' => $isPublic,
+        ];
+
+        if (!$isPublic) {
+            $updates['password_hash'] = null;
+        } elseif ($request->has('password')) {
+            $password = $request->input('password');
+
+            if ($password === null) {
+                $updates['password_hash'] = null;
+            } else {
+                if ($this->hasProtectedAncestor($file) || $this->hasProtectedDescendant($file)) {
+                    return Response::fail('', ResponseCodeEnum::ACCESS_PASSWORD_NESTED_NOT_ALLOWED);
+                }
+
+                $updates['password_hash'] = Hash::make($password);
+            }
+        }
+
+        $file->update($updates);
+
+        return Response::success(FileResource::make($file->fresh()), '', ResponseCodeEnum::OK);
+    }
+
+    private function hasProtectedAncestor(File $file): bool
+    {
+        $current = $file;
+
+        while ($current->parent_id) {
+            $current = File::find($current->parent_id);
+            if (!$current) {
+                break;
+            }
+
+            if ($current->password_hash) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasProtectedDescendant(File $file): bool
+    {
+        if (!$file->is_folder) {
+            return false;
+        }
+
+        $queue = [$file->id];
+
+        while (!empty($queue)) {
+            $children = File::query()
+                ->whereIn('parent_id', $queue)
+                ->get(['id', 'is_folder', 'password_hash']);
+
+            foreach ($children as $child) {
+                if ($child->password_hash) {
+                    return true;
+                }
+            }
+
+            $queue = $children
+                ->where('is_folder', true)
+                ->pluck('id')
+                ->all();
+        }
+
+        return false;
+    }
+
+    private function isAdminRequest(Request $request): bool
+    {
+        $validKey = trim((string) env('API_KEY', ''));
+        if ($validKey === '') {
+            return false;
+        }
+
+        $inputKey = $request->header('X-Api-Key') ?? $request->query('key');
+        if (!is_string($inputKey)) {
+            return false;
+        }
+
+        $inputKey = trim($inputKey);
+        if ($inputKey === '') {
+            return false;
+        }
+
+        return hash_equals($validKey, $inputKey);
+    }
+
+    private function resolveAccessError(File $file, Request $request, bool $isAdmin)
+    {
+        if ($isAdmin) {
+            return null;
+        }
+
+        $protectedNodes = [];
+        $current = $file;
+
+        while ($current) {
+            if (!$current->is_public) {
+                return Response::fail('', ResponseCodeEnum::ACCESS_DENIED);
+            }
+
+            if ($current->password_hash) {
+                $protectedNodes[] = $current;
+            }
+
+            if (!$current->parent_id) {
+                break;
+            }
+
+            $current = File::find($current->parent_id);
+        }
+
+        if (count($protectedNodes) === 0) {
+            return null;
+        }
+
+        if (count($protectedNodes) > 1) {
+            return Response::fail('', ResponseCodeEnum::ACCESS_DENIED);
+        }
+
+        $password = $request->query('password');
+        $password = is_string($password) ? trim($password) : '';
+
+        if ($password === '') {
+            return Response::fail('', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED);
+        }
+
+        if (!Hash::check($password, $protectedNodes[0]->password_hash)) {
+            return Response::fail('', ResponseCodeEnum::ACCESS_PASSWORD_ERROR);
+        }
+
+        return null;
     }
 }

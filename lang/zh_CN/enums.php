@@ -28,6 +28,12 @@ return [
         ResponseCodeEnum::SHARE_PASSWORD_ERROR->value => '提取码错误',
         ResponseCodeEnum::SHARE_ACCESS_DENIED->value => '无权访问该资源',
 
+        // 访问控制（公开/私有/加密）
+        ResponseCodeEnum::ACCESS_DENIED->value => '无权访问该资源',
+        ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value => '请输入提取码',
+        ResponseCodeEnum::ACCESS_PASSWORD_ERROR->value => '提取码错误',
+        ResponseCodeEnum::ACCESS_PASSWORD_NESTED_NOT_ALLOWED->value => '不支持嵌套加密，请先移除子项提取码',
+
 
         ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK->value => '物理文件丢失，请联系管理员',
         ResponseCodeEnum::FILE_SAVE_ERROR->value => '文件保存失败',

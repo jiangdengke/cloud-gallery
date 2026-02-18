@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 use App\Enums\ResponseCodeEnum;
@@ -286,6 +287,197 @@ class FileApiTest extends TestCase
             'id' => $child->id,
         ]);
         Storage::disk('public')->assertMissing($child->disk_path);
+    }
+
+    public function test_public_list_hides_private_items(): void
+    {
+        $public = File::create([
+            'parent_id' => null,
+            'name' => 'public.txt',
+            'is_folder' => false,
+            'is_public' => true,
+            'size' => 1,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/public.txt',
+        ]);
+
+        $private = File::create([
+            'parent_id' => null,
+            'name' => 'private.txt',
+            'is_folder' => false,
+            'is_public' => false,
+            'size' => 1,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/private.txt',
+        ]);
+
+        $response = $this->getJson('/api/files');
+
+        $response
+            ->assertStatus(200)
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('code', ResponseCodeEnum::OK->value);
+
+        $ids = collect($response->json('data.list'))->pluck('id')->all();
+        $this->assertContains($public->id, $ids);
+        $this->assertNotContains($private->id, $ids);
+    }
+
+    public function test_public_detail_denies_private_item(): void
+    {
+        $private = File::create([
+            'parent_id' => null,
+            'name' => 'private.txt',
+            'is_folder' => false,
+            'is_public' => false,
+            'size' => 1,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/private.txt',
+        ]);
+
+        $detail = $this->getJson("/api/files/{$private->id}");
+        $detail
+            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_DENIED->value);
+
+        $download = $this->getJson("/api/files/{$private->id}/download");
+        $download
+            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_DENIED->value);
+    }
+
+    public function test_protected_file_requires_password_for_detail_and_download(): void
+    {
+        Storage::fake('public');
+
+        $file = File::create([
+            'parent_id' => null,
+            'name' => 'secret.txt',
+            'is_folder' => false,
+            'is_public' => true,
+            'password_hash' => Hash::make('1234'),
+            'size' => 7,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/secret.txt',
+        ]);
+
+        Storage::disk('public')->put($file->disk_path, 'content');
+
+        $this->getJson("/api/files/{$file->id}")
+            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value);
+
+        $this->getJson("/api/files/{$file->id}?password=0000")
+            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_ERROR->value);
+
+        $this->getJson("/api/files/{$file->id}?password=1234")
+            ->assertJsonPath('code', ResponseCodeEnum::OK->value);
+
+        $this->getJson("/api/files/{$file->id}/download")
+            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value);
+
+        $this->get("/api/files/{$file->id}/download?password=1234")
+            ->assertStatus(200)
+            ->assertDownload('secret.txt');
+    }
+
+    public function test_protected_folder_requires_password_to_list_children(): void
+    {
+        $folder = File::create([
+            'parent_id' => null,
+            'name' => 'Protected',
+            'is_folder' => true,
+            'is_public' => true,
+            'password_hash' => Hash::make('1234'),
+            'size' => 0,
+            'disk_path' => null,
+        ]);
+
+        $child = File::create([
+            'parent_id' => $folder->id,
+            'name' => 'inside.txt',
+            'is_folder' => false,
+            'is_public' => true,
+            'size' => 1,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/inside.txt',
+        ]);
+
+        $this->getJson("/api/files?parent_id={$folder->id}")
+            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value);
+
+        $this->getJson("/api/files?parent_id={$folder->id}&password=0000")
+            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_ERROR->value);
+
+        $ok = $this->getJson("/api/files?parent_id={$folder->id}&password=1234");
+        $ok
+            ->assertJsonPath('code', ResponseCodeEnum::OK->value);
+
+        $ids = collect($ok->json('data.list'))->pluck('id')->all();
+        $this->assertContains($child->id, $ids);
+
+        $sub = File::create([
+            'parent_id' => $folder->id,
+            'name' => 'Sub',
+            'is_folder' => true,
+            'is_public' => true,
+            'size' => 0,
+            'disk_path' => null,
+        ]);
+
+        $this->getJson("/api/files?parent_id={$sub->id}")
+            ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value);
+
+        $this->getJson("/api/files?parent_id={$sub->id}&password=1234")
+            ->assertJsonPath('code', ResponseCodeEnum::OK->value);
+    }
+
+    public function test_admin_bypasses_access_controls(): void
+    {
+        Storage::fake('public');
+
+        $private = File::create([
+            'parent_id' => null,
+            'name' => 'private.txt',
+            'is_folder' => false,
+            'is_public' => false,
+            'size' => 1,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/private.txt',
+        ]);
+        Storage::disk('public')->put($private->disk_path, 'content');
+
+        $protected = File::create([
+            'parent_id' => null,
+            'name' => 'protected.txt',
+            'is_folder' => false,
+            'is_public' => true,
+            'password_hash' => Hash::make('1234'),
+            'size' => 1,
+            'mime_type' => 'text/plain',
+            'disk_path' => 'uploads/protected.txt',
+        ]);
+        Storage::disk('public')->put($protected->disk_path, 'content');
+
+        $list = $this->withHeader('X-Api-Key', $this->apiKey)->getJson('/api/files');
+        $ids = collect($list->json('data.list'))->pluck('id')->all();
+        $this->assertContains($private->id, $ids);
+        $this->assertContains($protected->id, $ids);
+
+        $this->withHeader('X-Api-Key', $this->apiKey)
+            ->getJson("/api/files/{$private->id}")
+            ->assertJsonPath('code', ResponseCodeEnum::OK->value);
+
+        $this->withHeader('X-Api-Key', $this->apiKey)
+            ->getJson("/api/files/{$protected->id}")
+            ->assertJsonPath('code', ResponseCodeEnum::OK->value);
+
+        $this->withHeader('X-Api-Key', $this->apiKey)
+            ->get("/api/files/{$private->id}/download")
+            ->assertStatus(200)
+            ->assertDownload('private.txt');
+
+        $this->withHeader('X-Api-Key', $this->apiKey)
+            ->get("/api/files/{$protected->id}/download")
+            ->assertStatus(200)
+            ->assertDownload('protected.txt');
     }
 
     private function setApiKey(): string

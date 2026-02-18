@@ -14,14 +14,18 @@ api.interceptors.response.use(
   }
 );
 
-export const getFiles = (parentId = null) => {
-  return api.get('/files', {
-    params: { parent_id: parentId },
-  });
+export const getFiles = (parentId = null, password = null) => {
+  const params = { parent_id: parentId };
+  if (password) params.password = password;
+
+  return api.get('/files', { params });
 };
 
-export const getFileDetail = (id) => {
-  return api.get(`/files/${id}`);
+export const getFileDetail = (id, password = null) => {
+  const params = {};
+  if (password) params.password = password;
+
+  return api.get(`/files/${id}`, { params });
 };
 
 export const setApiKey = (key) => {
@@ -56,6 +60,19 @@ export const deleteFiles = (ids) => {
 
 export const moveFile = (id, targetParentId) => {
   return api.post('/files/move', { id, parent_id: targetParentId });
+};
+
+export const updateAccess = (id, { isPublic, password } = {}) => {
+  const payload = {
+    id,
+    is_public: isPublic,
+  };
+
+  if (password !== undefined) {
+    payload.password = password;
+  }
+
+  return api.post('/files/access', payload);
 };
 
 export const uploadFile = (formData, onUploadProgress) => {

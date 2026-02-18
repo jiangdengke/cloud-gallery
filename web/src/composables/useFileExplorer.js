@@ -2,11 +2,13 @@ import { ref, computed } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import api, { 
   getFiles, 
+  getFileDetail,
   createFolder, 
   deleteFiles, 
   renameFile, 
   uploadFile, 
-  moveFile 
+  moveFile,
+  updateAccess
 } from '../api/file';
 import { createShare } from '../api/share';
 import MarkdownIt from 'markdown-it';
@@ -15,7 +17,8 @@ import MarkdownIt from 'markdown-it';
  * 文件浏览器核心逻辑 Hook
  * 包含：列表获取、增删改查操作、上传、面包屑管理
  */
-export function useFileExplorer() {
+export function useFileExplorer(options = {}) {
+  const isAdmin = !!options?.isAdmin;
   const md = new MarkdownIt({ html: true, linkify: true, typographer: true });
 
   // --- 核心状态 ---
@@ -25,6 +28,23 @@ export function useFileExplorer() {
     { id: null, name: '全部文件' } // 面包屑初始状态
   ]);
   const readmeContent = ref(''); // 当前目录下的 README 内容
+
+  // --- 访问控制（公开/私有/加密） ---
+  const passwordById = ref({});
+
+  // 解锁（输入提取码）弹窗
+  const showUnlockModal = ref(false);
+  const unlockPasswordInput = ref('');
+  const unlockTarget = ref(null);
+  const unlockAction = ref(''); // enter | download | preview
+
+  // 管理员：访问设置弹窗
+  const showAccessModal = ref(false);
+  const accessTarget = ref(null);
+  const accessIsPublic = ref(true);
+  const accessPasswordInput = ref('');
+  const accessPasswordClear = ref(false);
+  const accessSaving = ref(false);
 
   // --- 弹窗控制状态 ---
   const showCreateFolderModal = ref(false);
@@ -62,45 +82,68 @@ export function useFileExplorer() {
     return last.id;
   });
 
+  const activePathPassword = computed(() => {
+    for (let i = breadcrumbs.value.length - 1; i >= 0; i--) {
+      const password = breadcrumbs.value[i]?.password;
+      if (password) return password;
+    }
+    return null;
+  });
+
+  // 加载 README 内容
+  const loadReadme = async (id, password = null) => {
+    readmeContent.value = '';
+
+    try {
+      const params = {};
+      if (password) params.password = password;
+
+      const content = await api.get(`/files/${id}/download`, {
+        params,
+        responseType: 'text',
+        transformResponse: [data => data] // 防止 axios 自动解析 JSON
+      });
+
+      if (typeof content === 'string') {
+        readmeContent.value = md.render(content);
+      }
+    } catch (err) {
+      console.error('README 加载失败', err);
+    }
+  };
+
+  const applyFileList = async (list, password = null) => {
+    files.value = Array.isArray(list) ? list : [];
+
+    const readme = files.value.find(
+      (file) => !file.is_folder && !file.is_protected && (file.name || '').toLowerCase() === 'readme.md'
+    );
+    if (readme) {
+      await loadReadme(readme.id, password);
+    }
+  };
+
   // --- 核心方法：获取文件列表 ---
-  const fetchFiles = async (parentId = null) => {
+  const fetchFiles = async (parentId = null, { password } = {}) => {
     loading.value = true;
     readmeContent.value = ''; // 清空上一个目录的 README
+
+    const effectivePassword = password ?? (isAdmin ? null : activePathPassword.value);
+
     try {
-      console.log('Fetching files for parentId:', parentId); // Debug Log
-      const res = await getFiles(parentId);
-      console.log('Fetch response:', res); // Debug Log
+      const res = await getFiles(parentId, effectivePassword);
 
       if (res.code === 20000) {
-        files.value = res.data.list;
-        // 自动查找并加载 README.md
-        const readme = files.value.find(f => !f.is_folder && f.name.toLowerCase() === 'readme.md');
-        if (readme) {
-          loadReadme(readme.id);
-        }
-      } else {
-        message.error(res.message || '加载失败');
+        await applyFileList(res.data.list, effectivePassword);
+        return;
       }
+
+      message.error(res.message || '加载失败');
     } catch (err) {
       console.error(err);
       message.error('网络请求失败');
     } finally {
       loading.value = false;
-    }
-  };
-
-  // 加载 README 内容
-  const loadReadme = async (id) => {
-    try {
-      const content = await api.get(`/files/${id}/download`, {
-        responseType: 'text',
-        transformResponse: [data => data] // 防止 axios 自动解析 JSON
-      });
-      if (typeof content === 'string') {
-          readmeContent.value = md.render(content);
-      }
-    } catch (err) {
-      console.error('README 加载失败', err);
     }
   };
 
@@ -111,6 +154,264 @@ export function useFileExplorer() {
 
   const closePreview = () => {
     previewFile.value = null;
+  };
+
+  const getStoredApiKey = () => {
+    const key = (localStorage.getItem('api_key') || '').toString().trim();
+    return key || null;
+  };
+
+  const getEffectivePasswordFor = (record) => {
+    if (isAdmin) return null;
+
+    const pathPassword = activePathPassword.value;
+    if (pathPassword) return pathPassword;
+
+    const cachedPassword = passwordById.value?.[record?.id];
+    if (cachedPassword) return cachedPassword;
+
+    return null;
+  };
+
+  const buildDownloadUrl = (record, password = null) => {
+    const url = new URL(`/api/files/${record.id}/download`, window.location.origin);
+
+    if (isAdmin) {
+      const key = getStoredApiKey();
+      if (key) url.searchParams.set('key', key);
+      return url.toString();
+    }
+
+    const effectivePassword = password ?? getEffectivePasswordFor(record);
+    if (effectivePassword) url.searchParams.set('password', effectivePassword);
+
+    return url.toString();
+  };
+
+  const previewSrc = computed(() => {
+    if (!previewFile.value) return '';
+    return buildDownloadUrl(previewFile.value);
+  });
+
+  const doDownload = (record, password = null) => {
+    const url = buildDownloadUrl(record, password);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', record.is_folder ? `${record.name}.zip` : record.name);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const openUnlockModal = (record, action) => {
+    unlockTarget.value = record;
+    unlockAction.value = action;
+    unlockPasswordInput.value = '';
+    showUnlockModal.value = true;
+  };
+
+  const cancelUnlockModal = () => {
+    showUnlockModal.value = false;
+    unlockPasswordInput.value = '';
+    unlockTarget.value = null;
+    unlockAction.value = '';
+  };
+
+  const submitUnlockPassword = async () => {
+    const record = unlockTarget.value;
+    const action = unlockAction.value;
+    const password = (unlockPasswordInput.value || '').toString().trim();
+
+    if (!record || !action) return;
+
+    if (!password) return;
+
+    if (password.length < 4 || password.length > 6) {
+      message.warning('提取码长度应为 4-6 位');
+      return;
+    }
+
+    if (action === 'enter') {
+      loading.value = true;
+      readmeContent.value = '';
+
+      try {
+        const res = await getFiles(record.id, password);
+        if (res.code === 20000) {
+          passwordById.value[record.id] = password;
+          breadcrumbs.value.push({ id: record.id, name: record.name, password });
+          cancelUnlockModal();
+          await applyFileList(res.data.list, password);
+          return;
+        }
+
+        message.error(res.message || '加载失败');
+      } catch (err) {
+        console.error(err);
+        message.error('网络请求失败');
+      } finally {
+        loading.value = false;
+      }
+
+      return;
+    }
+
+    // download / preview
+    try {
+      const res = await getFileDetail(record.id, password);
+      if (res.code === 20000) {
+        passwordById.value[record.id] = password;
+        cancelUnlockModal();
+
+        if (action === 'preview') {
+          openPreview(record);
+          return;
+        }
+
+        doDownload(record, password);
+        return;
+      }
+
+      message.error(res.message || '操作失败');
+    } catch (err) {
+      console.error(err);
+      message.error('网络请求失败');
+    }
+  };
+
+  const openAccessSettings = (record) => {
+    if (!isAdmin) return;
+
+    accessTarget.value = record;
+    accessIsPublic.value = !!record.is_public;
+    accessPasswordInput.value = '';
+    accessPasswordClear.value = false;
+    showAccessModal.value = true;
+  };
+
+  const cancelAccessModal = () => {
+    showAccessModal.value = false;
+    accessTarget.value = null;
+    accessPasswordInput.value = '';
+    accessPasswordClear.value = false;
+  };
+
+  const handleAccessSave = async () => {
+    if (!isAdmin || !accessTarget.value) return;
+
+    const password = (accessPasswordInput.value || '').toString().trim();
+
+    if (accessIsPublic.value && !accessPasswordClear.value && password) {
+      if (password.length < 4 || password.length > 6) {
+        message.warning('提取码长度应为 4-6 位');
+        return;
+      }
+    }
+
+    accessSaving.value = true;
+    try {
+      const payload = {
+        isPublic: accessIsPublic.value,
+      };
+
+      if (!accessIsPublic.value) {
+        // 私有：后端会自动清除提取码
+      } else if (accessPasswordClear.value) {
+        payload.password = null;
+      } else if (password) {
+        payload.password = password;
+      }
+
+      const res = await updateAccess(accessTarget.value.id, payload);
+      if (res.code === 20000) {
+        message.success('访问设置已更新');
+        cancelAccessModal();
+        await fetchFiles(currentParentId.value);
+        return;
+      }
+
+      message.error(res.message || '更新失败');
+    } catch (err) {
+      console.error(err);
+      message.error('更新失败');
+    } finally {
+      accessSaving.value = false;
+    }
+  };
+
+  const enterFolder = async (record) => {
+    if (!record?.is_folder) return;
+
+    if (isAdmin || activePathPassword.value) {
+      breadcrumbs.value.push({ id: record.id, name: record.name });
+      await fetchFiles(record.id);
+      return;
+    }
+
+    if (!record.is_protected) {
+      breadcrumbs.value.push({ id: record.id, name: record.name });
+      await fetchFiles(record.id);
+      return;
+    }
+
+    const cachedPassword = passwordById.value?.[record.id];
+    if (cachedPassword) {
+      loading.value = true;
+      readmeContent.value = '';
+
+      try {
+        const res = await getFiles(record.id, cachedPassword);
+        if (res.code === 20000) {
+          breadcrumbs.value.push({ id: record.id, name: record.name, password: cachedPassword });
+          await applyFileList(res.data.list, cachedPassword);
+          return;
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        loading.value = false;
+      }
+    }
+
+    openUnlockModal(record, 'enter');
+  };
+
+  const openImagePreview = async (record) => {
+    if (isAdmin || activePathPassword.value || !record.is_protected) {
+      openPreview(record);
+      return;
+    }
+
+    const cachedPassword = passwordById.value?.[record.id];
+    if (cachedPassword) {
+      try {
+        const res = await getFileDetail(record.id, cachedPassword);
+        if (res.code === 20000) {
+          openPreview(record);
+          return;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    openUnlockModal(record, 'preview');
+  };
+
+  const handleItemClick = async (record) => {
+    if (!record) return;
+
+    if (record.is_folder) {
+      await enterFolder(record);
+      return;
+    }
+
+    if (isImage(record)) {
+      await openImagePreview(record);
+      return;
+    }
+
+    await downloadFile(record);
   };
 
   // --- 业务操作：分享 ---
@@ -421,14 +722,39 @@ export function useFileExplorer() {
     return mime.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(record.name);
   };
 
-  const downloadFile = (record) => {
-    const url = `/api/files/${record.id}/download`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', record.is_folder ? `${record.name}.zip` : record.name);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadFile = async (record) => {
+    if (!record) return;
+
+    if (isAdmin) {
+      doDownload(record);
+      return;
+    }
+
+    const pathPassword = activePathPassword.value;
+    if (pathPassword) {
+      doDownload(record, pathPassword);
+      return;
+    }
+
+    if (!record.is_protected) {
+      doDownload(record);
+      return;
+    }
+
+    const cachedPassword = passwordById.value?.[record.id];
+    if (cachedPassword) {
+      try {
+        const res = await getFileDetail(record.id, cachedPassword);
+        if (res.code === 20000) {
+          doDownload(record, cachedPassword);
+          return;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    openUnlockModal(record, 'download');
   };
 
   // 返回所有需要暴露给组件的属性和方法
@@ -463,6 +789,24 @@ export function useFileExplorer() {
     previewFile,
     openPreview,
     closePreview,
+    previewSrc,
+
+    showUnlockModal,
+    unlockPasswordInput,
+    submitUnlockPassword,
+    cancelUnlockModal,
+
+    showAccessModal,
+    accessTarget,
+    accessIsPublic,
+    accessPasswordInput,
+    accessPasswordClear,
+    accessSaving,
+    openAccessSettings,
+    handleAccessSave,
+    cancelAccessModal,
+
+    handleItemClick,
     
     fetchFiles,
     openCreateFolder,
