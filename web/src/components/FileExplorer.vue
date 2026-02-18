@@ -72,7 +72,7 @@
                 <file-image-outlined v-else-if="isImage(record)" class="file-icon image" />
                 <file-outlined v-else class="file-icon file" />
                 <span class="file-name">{{ record.name }}</span>
-                <a-tag v-if="record.is_protected" color="orange" class="meta-tag">
+                <a-tag v-if="isAdmin && record.is_protected" color="orange" class="meta-tag">
                   <lock-outlined /> 加密
                 </a-tag>
                 <a-tag v-if="isAdmin && record.is_public === false" color="red" class="meta-tag">
@@ -281,13 +281,13 @@
 
     <a-modal
       v-model:open="showUnlockModal"
-      title="请输入提取码"
+      title="需要 Key（提取码）"
       @ok="submitUnlockPassword"
       @cancel="cancelUnlockModal"
     >
       <a-input-password
         v-model:value="unlockPasswordInput"
-        placeholder="提取码（4-6 位）"
+        placeholder="Key（4-6 位）"
         :maxlength="6"
         @pressEnter="submitUnlockPassword"
       />
