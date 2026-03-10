@@ -57,7 +57,9 @@
     <a-modal v-model:open="showPasswordModal" title="请输入提取码" @ok="submitPassword">
       <a-input-password
         v-model:value="passwordInput"
-        placeholder="提取码"
+        placeholder="6 位数字提取码"
+        :maxlength="6"
+        inputmode="numeric"
         @pressEnter="submitPassword"
       />
     </a-modal>
@@ -122,11 +124,14 @@ const loadMarkdown = async () => {
   if (!share.value || share.value.is_folder || !isMarkdownName(share.value.name)) return;
 
   try {
+    const headers = {};
+    if (sharePassword.value) headers['X-Share-Password'] = sharePassword.value;
+
     const content = await api.get(`/shares/${token.value}/download`, {
       params: {
         file_id: share.value.file_id,
-        ...(sharePassword.value ? { password: sharePassword.value } : {}),
       },
+      headers,
       responseType: 'text',
       transformResponse: [data => data]
     });
@@ -281,4 +286,3 @@ watch(() => token.value, () => {
   border-radius: 8px;
 }
 </style>
-

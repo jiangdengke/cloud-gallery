@@ -24,15 +24,17 @@ return [
         // 分享
         ResponseCodeEnum::SHARE_NOT_FOUND->value => '该分享链接不存在或已被取消',
         ResponseCodeEnum::SHARE_EXPIRED->value => '该分享已过期',
-        ResponseCodeEnum::SHARE_PASSWORD_REQUIRED->value => '请输入提取码',
+        ResponseCodeEnum::SHARE_PASSWORD_REQUIRED->value => '请输入 6 位数字提取码',
         ResponseCodeEnum::SHARE_PASSWORD_ERROR->value => '提取码错误',
         ResponseCodeEnum::SHARE_ACCESS_DENIED->value => '无权访问该资源',
 
         // 访问控制（公开/私有）
         ResponseCodeEnum::ACCESS_DENIED->value => '无权访问该资源',
-        ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value => '请输入 Key',
+        ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value => '请输入 6 位数字 Key',
         ResponseCodeEnum::ACCESS_PASSWORD_ERROR->value => 'Key 错误',
         ResponseCodeEnum::ACCESS_PASSWORD_NESTED_NOT_ALLOWED->value => '不支持嵌套私有，请先取消子项私有',
+        ResponseCodeEnum::ACCESS_TOO_MANY_ATTEMPTS->value => '尝试次数过多，请稍后再试',
+        ResponseCodeEnum::SHARE_TOO_MANY_ATTEMPTS->value => '尝试次数过多，请稍后再试',
 
 
         ResponseCodeEnum::FILE_NOT_FOUND_ON_DISK->value => '物理文件丢失，请联系管理员',

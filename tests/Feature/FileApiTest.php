@@ -306,7 +306,7 @@ class FileApiTest extends TestCase
             'name' => 'private.txt',
             'is_folder' => false,
             'is_public' => false,
-            'password_hash' => Hash::make('1234'),
+            'password_hash' => Hash::make('123456'),
             'size' => 1,
             'mime_type' => 'text/plain',
             'disk_path' => 'uploads/private.txt',
@@ -339,7 +339,7 @@ class FileApiTest extends TestCase
             'name' => 'secret.txt',
             'is_folder' => false,
             'is_public' => false,
-            'password_hash' => Hash::make('1234'),
+            'password_hash' => Hash::make('123456'),
             'size' => 7,
             'mime_type' => 'text/plain',
             'disk_path' => 'uploads/secret.txt',
@@ -350,16 +350,16 @@ class FileApiTest extends TestCase
         $this->getJson("/api/files/{$file->id}")
             ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value);
 
-        $this->getJson("/api/files/{$file->id}?password=0000")
+        $this->getJson("/api/files/{$file->id}?password=000000")
             ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_ERROR->value);
 
-        $this->getJson("/api/files/{$file->id}?password=1234")
+        $this->getJson("/api/files/{$file->id}?password=123456")
             ->assertJsonPath('code', ResponseCodeEnum::OK->value);
 
         $this->getJson("/api/files/{$file->id}/download")
             ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value);
 
-        $this->get("/api/files/{$file->id}/download?password=1234")
+        $this->get("/api/files/{$file->id}/download?password=123456")
             ->assertStatus(200)
             ->assertDownload('secret.txt');
     }
@@ -371,7 +371,7 @@ class FileApiTest extends TestCase
             'name' => 'Protected',
             'is_folder' => true,
             'is_public' => false,
-            'password_hash' => Hash::make('1234'),
+            'password_hash' => Hash::make('123456'),
             'size' => 0,
             'disk_path' => null,
         ]);
@@ -389,10 +389,10 @@ class FileApiTest extends TestCase
         $this->getJson("/api/files?parent_id={$folder->id}")
             ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value);
 
-        $this->getJson("/api/files?parent_id={$folder->id}&password=0000")
+        $this->getJson("/api/files?parent_id={$folder->id}&password=000000")
             ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_ERROR->value);
 
-        $ok = $this->getJson("/api/files?parent_id={$folder->id}&password=1234");
+        $ok = $this->getJson("/api/files?parent_id={$folder->id}&password=123456");
         $ok
             ->assertJsonPath('code', ResponseCodeEnum::OK->value);
 
@@ -411,7 +411,7 @@ class FileApiTest extends TestCase
         $this->getJson("/api/files?parent_id={$sub->id}")
             ->assertJsonPath('code', ResponseCodeEnum::ACCESS_PASSWORD_REQUIRED->value);
 
-        $this->getJson("/api/files?parent_id={$sub->id}&password=1234")
+        $this->getJson("/api/files?parent_id={$sub->id}&password=123456")
             ->assertJsonPath('code', ResponseCodeEnum::OK->value);
     }
 
@@ -424,7 +424,7 @@ class FileApiTest extends TestCase
             'name' => 'private.txt',
             'is_folder' => false,
             'is_public' => false,
-            'password_hash' => Hash::make('1234'),
+            'password_hash' => Hash::make('123456'),
             'size' => 1,
             'mime_type' => 'text/plain',
             'disk_path' => 'uploads/private.txt',
@@ -436,7 +436,7 @@ class FileApiTest extends TestCase
             'name' => 'protected.txt',
             'is_folder' => false,
             'is_public' => false,
-            'password_hash' => Hash::make('1234'),
+            'password_hash' => Hash::make('123456'),
             'size' => 1,
             'mime_type' => 'text/plain',
             'disk_path' => 'uploads/protected.txt',

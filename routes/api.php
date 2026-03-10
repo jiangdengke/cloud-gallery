@@ -17,6 +17,10 @@ Route::get('/ping', function () {
 Route::get('/files', [FileController::class, 'index']);
 Route::get('/files/{id}', [FileController::class, 'detail']); // 文件详情
 Route::get('/files/{id}/download', [FileController::class, 'download']); // 下载文件
+Route::post('/files/{id}/download-url', [FileController::class, 'downloadUrl']); // 获取短期下载链接（避免 Key 暴露在 URL）
+Route::get('/files/{id}/download-signed', [FileController::class, 'signedDownload'])
+    ->middleware(\Illuminate\Routing\Middleware\ValidateSignature::class)
+    ->name('files.download.signed'); // 真实下载入口（签名校验）
 Route::prefix('shares')->group(function () {
     // 查看信息
     Route::get('/{token}', [\App\Http\Controllers\ShareController::class, 'detail']);

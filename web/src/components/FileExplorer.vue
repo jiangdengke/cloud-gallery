@@ -220,8 +220,10 @@
           </div>
           <a-input
             v-model:value="sharePassword"
-            placeholder="提取码（可选，4-6位）"
+            placeholder="提取码（可选，6 位数字）"
             style="margin-bottom: 12px;"
+            :maxlength="6"
+            inputmode="numeric"
           />
           <a-date-picker
             v-model:value="shareExpiredAt"
@@ -257,11 +259,12 @@
             <a-alert type="success" show-icon message="公开内容无需 Key，即可访问/下载" />
           </template>
           <template v-else>
-            <a-form-item label="Key（4-6 位）">
+            <a-form-item label="Key（6 位数字）">
               <a-input-password
                 v-model:value="accessPasswordInput"
                 placeholder="留空=不修改；设置/重置 Key"
                 :maxlength="6"
+                inputmode="numeric"
               />
             </a-form-item>
             <a-alert type="info" show-icon message="私有内容仍会出现在列表中，但访问/下载需要 Key" />
@@ -278,8 +281,9 @@
     >
       <a-input-password
         v-model:value="unlockPasswordInput"
-        placeholder="Key（4-6 位）"
+        placeholder="Key（6 位数字）"
         :maxlength="6"
+        inputmode="numeric"
         @pressEnter="submitUnlockPassword"
       />
     </a-modal>

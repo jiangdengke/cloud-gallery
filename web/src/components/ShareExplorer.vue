@@ -153,11 +153,14 @@ const fetchFiles = async (parentId) => {
 
 const loadReadme = async (id) => {
   try {
+    const headers = {};
+    if (props.password) headers['X-Share-Password'] = props.password;
+
     const content = await api.get(`/shares/${props.token}/download`, {
       params: {
         file_id: id,
-        ...(props.password ? { password: props.password } : {}),
       },
+      headers,
       responseType: 'text',
       transformResponse: [data => data]
     });

@@ -3,6 +3,7 @@ import { message, Modal } from 'ant-design-vue';
 import api, { 
   getFiles, 
   getFileDetail,
+  getFileDownloadUrl,
   createFolder, 
   deleteFiles, 
   renameFile, 
@@ -74,6 +75,8 @@ export function useFileExplorer(options = {}) {
 
   // --- 预览状态 ---
   const previewFile = ref(null);
+  const previewUrl = ref('');
+  let previewUrlSeq = 0;
 
   // --- 计算属性 ---
   // 当前所在的父文件夹 ID
@@ -95,11 +98,11 @@ export function useFileExplorer(options = {}) {
     readmeContent.value = '';
 
     try {
-      const params = {};
-      if (password) params.password = password;
+      const headers = {};
+      if (password) headers['X-Access-Key'] = password;
 
       const content = await api.get(`/files/${id}/download`, {
-        params,
+        headers,
         responseType: 'text',
         transformResponse: [data => data] // 防止 axios 自动解析 JSON
       });
@@ -148,17 +151,39 @@ export function useFileExplorer(options = {}) {
   };
 
   // --- 预览操作 ---
-  const openPreview = (record) => {
+  const openPreview = (record, password = null) => {
     previewFile.value = record;
+    previewUrl.value = '';
+
+    if (!record) return;
+
+    const seq = ++previewUrlSeq;
+    const effectivePassword = password ?? getEffectivePasswordFor(record);
+
+    void (async () => {
+      try {
+        const res = await getFileDownloadUrl(record.id, effectivePassword);
+        if (seq !== previewUrlSeq) return;
+
+        if (res.code === 20000 && res.data?.url) {
+          previewUrl.value = res.data.url;
+          return;
+        }
+
+        message.error(res.message || '获取预览链接失败');
+      } catch (err) {
+        console.error(err);
+        if (seq === previewUrlSeq) {
+          message.error('获取预览链接失败');
+        }
+      }
+    })();
   };
 
   const closePreview = () => {
     previewFile.value = null;
-  };
-
-  const getStoredApiKey = () => {
-    const key = (localStorage.getItem('api_key') || '').toString().trim();
-    return key || null;
+    previewUrl.value = '';
+    previewUrlSeq++;
   };
 
   const getEffectivePasswordFor = (record) => {
@@ -173,34 +198,30 @@ export function useFileExplorer(options = {}) {
     return null;
   };
 
-  const buildDownloadUrl = (record, password = null) => {
-    const url = new URL(`/api/files/${record.id}/download`, window.location.origin);
+  const previewSrc = computed(() => previewUrl.value);
 
-    if (isAdmin) {
-      const key = getStoredApiKey();
-      if (key) url.searchParams.set('key', key);
-      return url.toString();
-    }
-
+  const doDownload = async (record, password = null) => {
     const effectivePassword = password ?? getEffectivePasswordFor(record);
-    if (effectivePassword) url.searchParams.set('password', effectivePassword);
 
-    return url.toString();
-  };
+    try {
+      const res = await getFileDownloadUrl(record.id, effectivePassword);
 
-  const previewSrc = computed(() => {
-    if (!previewFile.value) return '';
-    return buildDownloadUrl(previewFile.value);
-  });
+      if (res.code !== 20000 || !res.data?.url) {
+        message.error(res.message || '获取下载链接失败');
+        return;
+      }
 
-  const doDownload = (record, password = null) => {
-    const url = buildDownloadUrl(record, password);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', record.is_folder ? `${record.name}.zip` : record.name);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const url = res.data.url;
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', record.is_folder ? `${record.name}.zip` : record.name);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(err);
+      message.error('获取下载链接失败');
+    }
   };
 
   const openUnlockModal = (record, action) => {
@@ -226,8 +247,8 @@ export function useFileExplorer(options = {}) {
 
     if (!password) return;
 
-    if (password.length < 4 || password.length > 6) {
-      message.warning('Key 长度应为 4-6 位');
+    if (!/^\d{6}$/.test(password)) {
+      message.warning('Key 必须为 6 位数字');
       return;
     }
 
@@ -264,11 +285,11 @@ export function useFileExplorer(options = {}) {
         cancelUnlockModal();
 
         if (action === 'preview') {
-          openPreview(record);
+          openPreview(record, password);
           return;
         }
 
-        doDownload(record, password);
+        await doDownload(record, password);
         return;
       }
 
@@ -302,13 +323,13 @@ export function useFileExplorer(options = {}) {
     const password = (accessPasswordInput.value || '').toString().trim();
 
     if (!accessIsPublic.value) {
-      if (password && (password.length < 4 || password.length > 6)) {
-        message.warning('Key 长度应为 4-6 位');
+      if (password && !/^\d{6}$/.test(password)) {
+        message.warning('Key 必须为 6 位数字');
         return;
       }
 
       if (!password && accessInitialIsPublic.value) {
-        message.warning('请设置 Key（4-6 位）');
+        message.warning('请设置 6 位数字 Key');
         return;
       }
     }
@@ -378,8 +399,10 @@ export function useFileExplorer(options = {}) {
   };
 
   const openImagePreview = async (record) => {
-    if (isAdmin || activePathPassword.value || !record.is_protected) {
-      openPreview(record);
+    const pathPassword = activePathPassword.value;
+
+    if (isAdmin || pathPassword || !record.is_protected) {
+      openPreview(record, pathPassword);
       return;
     }
 
@@ -388,7 +411,7 @@ export function useFileExplorer(options = {}) {
       try {
         const res = await getFileDetail(record.id, cachedPassword);
         if (res.code === 20000) {
-          openPreview(record);
+          openPreview(record, cachedPassword);
           return;
         }
       } catch (err) {
@@ -473,8 +496,8 @@ export function useFileExplorer(options = {}) {
     if (!shareTarget.value) return;
 
     const password = sharePassword.value?.trim() || null;
-    if (password && (password.length < 4 || password.length > 6)) {
-      message.warning('提取码长度应为 4-6 位');
+    if (password && !/^\d{6}$/.test(password)) {
+      message.warning('提取码必须为 6 位数字');
       return;
     }
 
@@ -727,18 +750,18 @@ export function useFileExplorer(options = {}) {
     if (!record) return;
 
     if (isAdmin) {
-      doDownload(record);
+      await doDownload(record);
       return;
     }
 
     const pathPassword = activePathPassword.value;
     if (pathPassword) {
-      doDownload(record, pathPassword);
+      await doDownload(record, pathPassword);
       return;
     }
 
     if (!record.is_protected) {
-      doDownload(record);
+      await doDownload(record);
       return;
     }
 
@@ -747,7 +770,7 @@ export function useFileExplorer(options = {}) {
       try {
         const res = await getFileDetail(record.id, cachedPassword);
         if (res.code === 20000) {
-          doDownload(record, cachedPassword);
+          await doDownload(record, cachedPassword);
           return;
         }
       } catch (err) {

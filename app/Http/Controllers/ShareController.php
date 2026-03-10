@@ -10,11 +10,14 @@ use App\Models\File;
 use App\Models\FileShare;
 use App\Services\FolderZipService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Jiannei\Response\Laravel\Support\Facades\Response;
 use Illuminate\Support\Facades\Storage;
 class ShareController extends Controller
 {
+    private const SHARE_PASSWORD_MAX_ATTEMPTS = 5;
+    private const SHARE_PASSWORD_DECAY_SECONDS = 300;
 
     /**
      * 获取分享文件夹内部的文件列表
@@ -30,13 +33,8 @@ class ShareController extends Controller
         if ($share->expired_at && $share->expired_at->isPast()) {
             return Response::fail('', ResponseCodeEnum::SHARE_EXPIRED);
         }
-        if ($share->password) {
-            if (!$request->filled('password')) {
-                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
-            }
-            if ($request->password !== $share->password) {
-                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
-            }
+        if ($passwordError = $this->resolveSharePasswordError($request, $share)) {
+            return $passwordError;
         }
 
         $root = $share->file;
@@ -110,16 +108,8 @@ class ShareController extends Controller
         if ($share ->expired_at && $share->expired_at->isPast()) {
             return Response::fail('', ResponseCodeEnum::SHARE_EXPIRED);
         }
-        // 检查密码逻辑
-        if ($share->password) {
-            // 如果分享设置了密码，且用户没传 password 参数
-            if (!$request->filled('password')) {
-                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
-            }
-            // 如果传了但不对，提示密码错误
-            if ($request->password !== $share->password) {
-                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
-            }
+        if ($passwordError = $this->resolveSharePasswordError($request, $share)) {
+            return $passwordError;
         }
         // 验证通过，增加一次浏览量
         $share->click_count++;
@@ -160,15 +150,8 @@ class ShareController extends Controller
             return Response::fail('', ResponseCodeEnum::SHARE_EXPIRED);
         }
 
-        // 检查密码
-        if ($share->password) {
-            if (!$request->filled('password')) {
-                // 下载接口通常是浏览器直接访问
-                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
-            }
-            if ($request->password !== $share->password) {
-                return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
-            }
+        if ($passwordError = $this->resolveSharePasswordError($request, $share)) {
+            return $passwordError;
         }
 
         $root = $share->file;
@@ -216,7 +199,7 @@ class ShareController extends Controller
         // 验证
         $request->validate([
             'file_id' => 'required|exists:files,id',
-            'password' => 'nullable|string|min:4|max:6', // 提取码通常4-6位
+            'password' => 'nullable|digits:6', // 提取码 6 位数字（可选）
             'expired_at' => 'nullable|date|after:now', // 必须是未来的时间
         ]);
 
@@ -242,6 +225,74 @@ class ShareController extends Controller
 
         // 返回分享信息
         return Response::success(ShareCreateResource::make($share), '', ResponseCodeEnum::OK);
+    }
+
+    private function extractSharePassword(Request $request): string
+    {
+        $password = $request->header('X-Share-Password');
+        if (!is_string($password) || trim($password) === '') {
+            $password = $request->query('password');
+        }
+
+        $password = is_string($password) ? trim($password) : '';
+
+        return $password;
+    }
+
+    private function shareRateLimitKey(Request $request, FileShare $share): string
+    {
+        $ip = (string) ($request->ip() ?? 'unknown');
+
+        return 'share-pass:' . $share->token . ':' . $ip;
+    }
+
+    private function resolveSharePasswordError(Request $request, FileShare $share)
+    {
+        if (!$share->password) {
+            RateLimiter::clear($this->shareRateLimitKey($request, $share));
+            return null;
+        }
+
+        $password = $this->extractSharePassword($request);
+        if ($password === '') {
+            return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_REQUIRED);
+        }
+
+        $rateKey = $this->shareRateLimitKey($request, $share);
+
+        if (RateLimiter::tooManyAttempts($rateKey, self::SHARE_PASSWORD_MAX_ATTEMPTS)) {
+            if (!preg_match('/^\\d{6}$/', $password) || $password !== (string) $share->password) {
+                return Response::fail('', ResponseCodeEnum::SHARE_TOO_MANY_ATTEMPTS);
+            }
+
+            RateLimiter::clear($rateKey);
+
+            return null;
+        }
+
+        if (!preg_match('/^\\d{6}$/', $password)) {
+            RateLimiter::hit($rateKey, self::SHARE_PASSWORD_DECAY_SECONDS);
+
+            if (RateLimiter::tooManyAttempts($rateKey, self::SHARE_PASSWORD_MAX_ATTEMPTS)) {
+                return Response::fail('', ResponseCodeEnum::SHARE_TOO_MANY_ATTEMPTS);
+            }
+
+            return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
+        }
+
+        if ($password !== (string) $share->password) {
+            RateLimiter::hit($rateKey, self::SHARE_PASSWORD_DECAY_SECONDS);
+
+            if (RateLimiter::tooManyAttempts($rateKey, self::SHARE_PASSWORD_MAX_ATTEMPTS)) {
+                return Response::fail('', ResponseCodeEnum::SHARE_TOO_MANY_ATTEMPTS);
+            }
+
+            return Response::fail('', ResponseCodeEnum::SHARE_PASSWORD_ERROR);
+        }
+
+        RateLimiter::clear($rateKey);
+
+        return null;
     }
 
     private function isWithinRoot(File $file, File $root): bool

@@ -1,7 +1,47 @@
 import axios from 'axios';
 
+const normalizeApiBaseUrl = (value) => {
+  const raw = (value ?? '').toString().trim();
+  if (!raw) return '/api';
+
+  const trimmed = raw.replace(/\/+$/, '');
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      const pathname = url.pathname.replace(/\/+$/, '');
+      if (pathname === '' || pathname === '/') {
+        url.pathname = '/api';
+        return url.toString().replace(/\/+$/, '');
+      }
+    } catch (e) {
+      // ignore invalid URL
+    }
+  }
+
+  return trimmed;
+};
+
+export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+
+export const buildApiUrl = (path, params = {}) => {
+  const normalizedPath = (path ?? '').toString();
+  const apiPath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
+
+  const url = new URL(`${API_BASE_URL}${apiPath}`, window.location.origin);
+
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value === null || value === undefined) continue;
+    const stringValue = String(value);
+    if (!stringValue) continue;
+    url.searchParams.set(key, stringValue);
+  }
+
+  return url.toString();
+};
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   validateStatus: (status) => status >= 200 && status < 500,
 });
@@ -16,16 +56,24 @@ api.interceptors.response.use(
 
 export const getFiles = (parentId = null, password = null) => {
   const params = { parent_id: parentId };
-  if (password) params.password = password;
+  const headers = {};
+  if (password) headers['X-Access-Key'] = password;
 
-  return api.get('/files', { params });
+  return api.get('/files', { params, headers });
 };
 
 export const getFileDetail = (id, password = null) => {
-  const params = {};
-  if (password) params.password = password;
+  const headers = {};
+  if (password) headers['X-Access-Key'] = password;
 
-  return api.get(`/files/${id}`, { params });
+  return api.get(`/files/${id}`, { headers });
+};
+
+export const getFileDownloadUrl = (id, password = null) => {
+  const payload = {};
+  if (password) payload.password = password;
+
+  return api.post(`/files/${id}/download-url`, payload);
 };
 
 export const setApiKey = (key) => {

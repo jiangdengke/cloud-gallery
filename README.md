@@ -5,15 +5,50 @@
 ## 功能概览
 
 - 公开模式：目录浏览、文件下载、图片预览、目录内 `README.md` 渲染
-- 访问控制：支持「公开 / 私有」；私有内容仍会出现在列表中，但进入/下载需要 Key（4–6 位）
+- 访问控制：支持「公开 / 私有」；私有内容仍会出现在列表中，但进入/下载需要 Key（6 位数字）
 - 管理模式（`API_KEY`）：上传文件、新建文件夹、重命名、移动、删除、创建分享链接
-- 分享链接：支持文件/文件夹分享；可选提取码（4–6 位）与过期时间；文件夹支持多级浏览；支持打包 ZIP 下载
+- 分享链接：支持文件/文件夹分享；可选提取码（6 位数字）与过期时间；文件夹支持多级浏览；支持打包 ZIP 下载
 - 秒传/去重：上传按内容哈希复用已存在物理文件；删除仅在无其他引用时删除物理文件
 
 ## 前端目录
 
 - 前端源码在 `web/`（独立 Vite 项目）
 - 生产环境构建产物会放到 Laravel 的 `public/` 下（Docker 镜像会自动完成这一步）
+- 前端可通过 `VITE_API_BASE_URL` 指定后端地址（见 `web/.env.example`）
+
+## 前后端分离（可选）
+
+默认模式下，本项目可以“一体化部署”（Laravel 同时提供 API + 前端静态文件）。如果你希望前端独立部署（CDN/Nginx/Vercel）并让后端只提供 API，可按下述方式配置。
+
+### 后端（API）
+
+1) `.env` 建议配置
+
+- `SERVE_SPA=false`（关闭 SPA 回退路由）
+- `CORS_ALLOWED_ORIGINS=https://your-frontend-domain`（可多个，逗号分隔；开发常用 `http://127.0.0.1:5173`）
+
+2) Docker 构建 API-only 镜像（不包含前端构建）
+
+```bash
+docker build --target api -t cloud-gallery-api .
+```
+
+### 前端（web）
+
+1) 创建 `web/.env`（参考 `web/.env.example`），设置后端 API 地址（会自动补 `/api`）
+
+```bash
+# 示例：后端部署在 api.example.com
+VITE_API_BASE_URL=https://api.example.com
+```
+
+2) 构建并部署静态文件
+
+```bash
+npm --prefix web run build
+```
+
+将 `web/dist/` 部署到静态站点；如果启用 history 路由（默认），需要将所有路由回退到 `index.html`。
 
 ## 运行方式
 

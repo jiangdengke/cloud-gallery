@@ -12,6 +12,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+
         // 注册别名
         $middleware->alias([
             'auth.key' => App\Http\Middleware\CheckApiToken::class,

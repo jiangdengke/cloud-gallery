@@ -23,8 +23,8 @@ RUN composer install --no-dev --prefer-dist --no-interaction --no-scripts
 COPY . .
 RUN composer dump-autoload --optimize
 
-# ---- app runtime (Apache) ----
-FROM php:8.4-apache AS app
+# ---- app runtime (Apache, API only) ----
+FROM php:8.4-apache AS api
 WORKDIR /var/www
 
 ENV APACHE_DOCUMENT_ROOT=/var/www/public
@@ -57,7 +57,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=vendor /app /var/www
-COPY --from=nodebuild /app/web/dist /var/www/public
 
 RUN mkdir -p \
         /var/www/storage/app/public \
@@ -71,3 +70,7 @@ RUN mkdir -p \
     && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
 CMD ["apache2-foreground"]
+
+# ---- app runtime (Apache, with built frontend) ----
+FROM api AS app
+COPY --from=nodebuild /app/web/dist /var/www/public

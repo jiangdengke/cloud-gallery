@@ -40,7 +40,7 @@ class ShareApiTest extends TestCase
         $create = $this->withHeader('X-Api-Key', $this->apiKey)
             ->postJson('/api/shares/create', [
                 'file_id' => $file->id,
-                'password' => '1234',
+                'password' => '123456',
             ]);
 
         $create
@@ -50,7 +50,7 @@ class ShareApiTest extends TestCase
         $token = $create->json('data.token');
         $this->assertNotEmpty($token);
 
-        $detail = $this->getJson("/api/shares/{$token}?password=1234");
+        $detail = $this->getJson("/api/shares/{$token}?password=123456");
         $detail
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -186,7 +186,7 @@ class ShareApiTest extends TestCase
         $share = FileShare::create([
             'file_id' => $file->id,
             'token' => 'tokensecret',
-            'password' => '1234',
+            'password' => '123456',
             'expired_at' => null,
         ]);
 
@@ -210,11 +210,11 @@ class ShareApiTest extends TestCase
         $share = FileShare::create([
             'file_id' => $file->id,
             'token' => 'tokenwrong',
-            'password' => '1234',
+            'password' => '123456',
             'expired_at' => null,
         ]);
 
-        $response = $this->getJson("/api/shares/{$share->token}?password=0000");
+        $response = $this->getJson("/api/shares/{$share->token}?password=000000");
 
         $response
             ->assertJsonPath('code', ResponseCodeEnum::SHARE_PASSWORD_ERROR->value);
