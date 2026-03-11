@@ -10,6 +10,13 @@ RUN npm run build
 FROM php:8.4-cli AS vendor
 WORKDIR /app
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
+
+# Composer 在 Docker 构建环境中偶发网络超时（尤其是 GitHub dist/source 下载）。
+# 这里适当放宽超时时间，避免依赖下载慢导致镜像构建失败。
+ENV COMPOSER_ALLOW_SUPERUSER=1 \
+    COMPOSER_PROCESS_TIMEOUT=1200 \
+    COMPOSER_HTTP_TIMEOUT=1200
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         $PHPIZE_DEPS \
@@ -19,7 +26,7 @@ RUN apt-get update \
     && apt-get purge -y --auto-remove $PHPIZE_DEPS \
     && rm -rf /var/lib/apt/lists/*
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --no-interaction --no-scripts
+RUN composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-progress
 COPY . .
 RUN composer dump-autoload --optimize
 
