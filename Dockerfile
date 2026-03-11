@@ -49,8 +49,9 @@ RUN apt-get update \
         $PHPIZE_DEPS \
         libpng-dev libjpeg-dev libfreetype6-dev \
         libzip-dev libonig-dev libicu-dev \
+        libsqlite3-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql mbstring zip gd bcmath intl \
+    && docker-php-ext-install pdo_mysql pdo_sqlite sqlite3 mbstring zip gd bcmath intl \
     && apt-get purge -y --auto-remove $PHPIZE_DEPS \
     && a2enmod rewrite \
     && sed -ri -e "s!/var/www/html!${APACHE_DOCUMENT_ROOT}!g" /etc/apache2/sites-available/000-default.conf \
@@ -76,6 +77,11 @@ RUN mkdir -p \
     && if [ ! -e /var/www/public/storage ]; then ln -s /var/www/storage/app/public /var/www/public/storage; fi \
     && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
+# 启动前：自动生成 APP_KEY、准备 SQLite、执行迁移（见 docker/entrypoint.sh）
+COPY docker/entrypoint.sh /usr/local/bin/cloud-gallery-entrypoint
+RUN chmod +x /usr/local/bin/cloud-gallery-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/cloud-gallery-entrypoint"]
 CMD ["apache2-foreground"]
 
 # ---- app runtime (Apache, with built frontend) ----
