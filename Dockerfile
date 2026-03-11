@@ -49,9 +49,9 @@ RUN apt-get update \
         $PHPIZE_DEPS \
         libpng-dev libjpeg-dev libfreetype6-dev \
         libzip-dev libonig-dev libicu-dev \
-        libsqlite3-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql pdo_sqlite sqlite3 mbstring zip gd bcmath intl \
+    # php:8.4-apache 已内置 sqlite3/pdo_sqlite，无需再次编译（避免 config0.m4 兼容问题）
+    && docker-php-ext-install pdo_mysql mbstring zip gd bcmath intl \
     && apt-get purge -y --auto-remove $PHPIZE_DEPS \
     && a2enmod rewrite \
     && sed -ri -e "s!/var/www/html!${APACHE_DOCUMENT_ROOT}!g" /etc/apache2/sites-available/000-default.conf \
