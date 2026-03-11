@@ -24,7 +24,8 @@ if [ -z "${APP_KEY:-}" ]; then
     if [ -s "${APP_KEY_FILE}" ]; then
         APP_KEY="$(cat "${APP_KEY_FILE}")"
     else
-        APP_KEY="$(php -r 'echo \"base64:\".base64_encode(random_bytes(32));')"
+        # 生成一个符合 Laravel 规范的 base64 key
+        APP_KEY="$(php -r 'echo "base64:".base64_encode(random_bytes(32));')"
 
         mkdir -p "$(dirname "${APP_KEY_FILE}")"
         tmp_key_file="$(mktemp)"
@@ -67,4 +68,3 @@ fi
 
 # 最后执行容器原本的命令（默认 apache2-foreground）
 exec "$@"
-
