@@ -54,7 +54,10 @@ npm --prefix web run build
 
 ### 方式 A：Docker（推荐，接近生产）
 
-本项目的 `docker-compose.yml` **不包含数据库服务**，你需要在 `.env` 里配置 `DB_*` 连接到你自己的数据库（云 MySQL / 公司内网 MySQL / 本机 MySQL 等）。
+本项目的 `docker-compose.yml` 支持 **SQLite（默认，开箱即用）** 和 **外部数据库（如 MySQL）** 两种方式：
+
+- SQLite（推荐先用这个跑起来）：无需额外数据库服务，数据文件保存在 compose volume（`storage-data`）里
+- MySQL：你需要在 `.env` 里配置 `DB_*` 连接到你自己的数据库（云 MySQL / 公司内网 MySQL / 本机 MySQL 等）
 
 1) 准备环境变量文件
 
@@ -68,14 +71,16 @@ cp .env.example .env
 
 - `APP_URL=http://localhost:8080`
 - `API_KEY=your_secret_key`
-- `DB_CONNECTION=mysql`
-- `DB_HOST=your-db-host`
-- `DB_PORT=3306`
-- `DB_DATABASE=cloud_gallery`
-- `DB_USERNAME=your_user`
-- `DB_PASSWORD=your_password`
 
-> 如果数据库在宿主机：Docker Desktop 通常可用 `DB_HOST=host.docker.internal`。
+> SQLite 方式不需要改 `DB_*`（`.env.example` 默认 `DB_CONNECTION=sqlite`）。
+
+> 如果你要使用 MySQL，请在 `.env` 配置：
+> - `DB_CONNECTION=mysql`
+> - `DB_HOST=your-db-host`（数据库在宿主机时，Docker Desktop 通常可用 `host.docker.internal`）
+> - `DB_PORT=3306`
+> - `DB_DATABASE=cloud_gallery`
+> - `DB_USERNAME=your_user`
+> - `DB_PASSWORD=your_password`
 
 3) 启动
 
@@ -83,12 +88,15 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-4) 首次初始化（生成 `APP_KEY` + 执行迁移）
+4) 首次初始化（自动完成）
 
-```bash
-docker compose exec app php artisan key:generate
-docker compose exec app php artisan migrate --force
-```
+首次启动容器时会自动：
+
+- 生成 `APP_KEY`（持久化到 `storage-data` volume）
+- SQLite：自动创建数据库文件（持久化到 `storage-data` volume）
+- 执行 `php artisan migrate --force`
+
+如需关闭自动迁移，可在 `.env` 里添加 `RUN_MIGRATIONS=0`。
 
 访问：`http://localhost:8080`
 
