@@ -67,6 +67,11 @@
 </template>
 
 <script setup>
+// 分享页面（前端业务代码）
+// - 根据路由参数 token 拉取分享详情
+// - 若分享有提取码，则弹窗输入 6 位数字提取码后再访问
+// - 分享为文件夹时使用 ShareExplorer 展示；为文件时支持下载/图片预览/Markdown 渲染
+
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
@@ -85,21 +90,26 @@ import { isDark, toggleTheme } from '../themeState';
 const route = useRoute();
 const router = useRouter();
 
+// 分享 token（来自 /s/:token）
 const token = computed(() => route.params.token);
 
 const loading = ref(false);
 const error = ref('');
 const share = ref(null);
 
+// 提取码弹窗与输入
 const showPasswordModal = ref(false);
 const passwordInput = ref('');
+// 当前有效提取码（用于后续接口请求/下载链接）
 const sharePassword = ref('');
 
+// Markdown 渲染器：用于展示 .md 文件内容
 const md = new MarkdownIt({ html: true, linkify: true, typographer: true });
 const markdownHtml = ref('');
 
 const rootDownloadUrl = computed(() => {
   if (!share.value) return '';
+  // 构建“可直接下载”的链接（浏览器无法带自定义 Header，所以可能拼接 ?password=）
   return buildShareDownloadUrl(token.value, {
     fileId: share.value.file_id,
     password: sharePassword.value || null
@@ -127,6 +137,7 @@ const loadMarkdown = async () => {
     const headers = {};
     if (sharePassword.value) headers['X-Share-Password'] = sharePassword.value;
 
+    // Markdown 内容同样走下载接口获取原始文本
     const content = await api.get(`/shares/${token.value}/download`, {
       params: {
         file_id: share.value.file_id,
@@ -151,6 +162,7 @@ const loadShare = async () => {
   markdownHtml.value = '';
 
   try {
+    // 获取分享详情（后端会校验 token/过期/提取码）
     const res = await getShareDetail(token.value, sharePassword.value || null);
     if (res.code === 20000) {
       share.value = res.data;
@@ -160,7 +172,7 @@ const loadShare = async () => {
       return;
     }
 
-    // 密码相关：提示并弹窗
+    // 提取码相关：提示并弹窗
     if (res.code === 30009 || res.code === 30010) {
       showPasswordModal.value = true;
       if (res.code === 30010) {
@@ -179,6 +191,7 @@ const loadShare = async () => {
 };
 
 const submitPassword = async () => {
+  // 提取码非空即可，格式校验由后端统一处理（后端要求 6 位数字）
   if (!passwordInput.value) return;
   sharePassword.value = passwordInput.value;
   await loadShare();
@@ -186,6 +199,7 @@ const submitPassword = async () => {
 
 const downloadRoot = () => {
   if (!share.value) return;
+  // 触发浏览器下载
   const link = document.createElement('a');
   link.href = rootDownloadUrl.value;
   link.setAttribute('download', share.value.is_folder ? `${share.value.name}.zip` : share.value.name);
@@ -196,6 +210,7 @@ const downloadRoot = () => {
 
 onMounted(() => loadShare());
 watch(() => token.value, () => {
+  // token 变化时清空提取码并重新拉取
   sharePassword.value = '';
   passwordInput.value = '';
   loadShare();

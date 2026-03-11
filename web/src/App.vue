@@ -14,6 +14,9 @@
 </template>
 
 <script setup>
+// App 根组件（前端业务代码）
+// - 使用 Ant Design Vue 的 ConfigProvider 统一主题算法
+// - isDark 由 themeState 管理并写入 body class
 import { theme } from 'ant-design-vue';
 import { isDark } from './themeState';
 </script>

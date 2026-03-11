@@ -15,11 +15,18 @@ import { createShare } from '../api/share';
 import MarkdownIt from 'markdown-it';
 
 /**
- * 文件浏览器核心逻辑 Hook
- * 包含：列表获取、增删改查操作、上传、面包屑管理
+ * 文件浏览器核心逻辑 Hook（前端业务代码）。
+ *
+ * 主要职责：
+ * - 列表/详情/下载/预览（含私有 Key 解锁）
+ * - 管理操作：上传、重命名、删除、移动、访问设置、创建分享
+ * - 面包屑导航、README 渲染、目录树懒加载
  */
 export function useFileExplorer(options = {}) {
+  // isAdmin=true 时表示管理模式（拥有写操作按钮与访问设置能力）
   const isAdmin = !!options?.isAdmin;
+
+  // Markdown 渲染器：用于在目录页展示 README.md
   const md = new MarkdownIt({ html: true, linkify: true, typographer: true });
 
   // --- 核心状态 ---
@@ -31,6 +38,7 @@ export function useFileExplorer(options = {}) {
   const readmeContent = ref(''); // 当前目录下的 README 内容
 
   // --- 访问控制（公开/私有） ---
+  // 缓存“某个节点解锁成功后的 Key”（避免每次都弹窗）
   const passwordById = ref({});
 
   // 解锁（输入 Key）弹窗
@@ -74,6 +82,7 @@ export function useFileExplorer(options = {}) {
   const activeUploads = ref(0);
 
   // --- 预览状态 ---
+  // 预览使用“短期签名 URL”（后端返回），避免把 Key 放进 URL
   const previewFile = ref(null);
   const previewUrl = ref('');
   let previewUrlSeq = 0;
@@ -86,6 +95,7 @@ export function useFileExplorer(options = {}) {
   });
 
   const activePathPassword = computed(() => {
+    // 从面包屑末尾往前找：一旦某层目录已解锁，子层默认可复用同一 Key
     for (let i = breadcrumbs.value.length - 1; i >= 0; i--) {
       const password = breadcrumbs.value[i]?.password;
       if (password) return password;
@@ -101,6 +111,7 @@ export function useFileExplorer(options = {}) {
       const headers = {};
       if (password) headers['X-Access-Key'] = password;
 
+      // README 走下载接口获取原始文本；这里关闭 axios 的 JSON 解析
       const content = await api.get(`/files/${id}/download`, {
         headers,
         responseType: 'text',
@@ -115,9 +126,11 @@ export function useFileExplorer(options = {}) {
     }
   };
 
+  // 应用后端返回的列表数据，并在存在 README.md 时自动渲染
   const applyFileList = async (list, password = null) => {
     files.value = Array.isArray(list) ? list : [];
 
+    // 仅对“公开可读”的 README 才展示（私有 README 需要先解锁）
     const readme = files.value.find(
       (file) => !file.is_folder && !file.is_protected && (file.name || '').toLowerCase() === 'readme.md'
     );
@@ -131,6 +144,7 @@ export function useFileExplorer(options = {}) {
     loading.value = true;
     readmeContent.value = ''; // 清空上一个目录的 README
 
+    // 当前请求使用的 Key：优先使用显式传入，其次使用面包屑中缓存的“路径 Key”
     const effectivePassword = password ?? (isAdmin ? null : activePathPassword.value);
 
     try {
@@ -157,11 +171,13 @@ export function useFileExplorer(options = {}) {
 
     if (!record) return;
 
+    // 序号用于处理并发请求：只接受“最后一次打开预览”的结果
     const seq = ++previewUrlSeq;
     const effectivePassword = password ?? getEffectivePasswordFor(record);
 
     void (async () => {
       try {
+        // 预览同样走两段式下载：先拿 signed URL，再设置为 img src
         const res = await getFileDownloadUrl(record.id, effectivePassword);
         if (seq !== previewUrlSeq) return;
 
@@ -189,9 +205,11 @@ export function useFileExplorer(options = {}) {
   const getEffectivePasswordFor = (record) => {
     if (isAdmin) return null;
 
+    // 优先使用当前路径已解锁的 Key
     const pathPassword = activePathPassword.value;
     if (pathPassword) return pathPassword;
 
+    // 其次使用对单个节点缓存的 Key
     const cachedPassword = passwordById.value?.[record?.id];
     if (cachedPassword) return cachedPassword;
 
@@ -204,6 +222,7 @@ export function useFileExplorer(options = {}) {
     const effectivePassword = password ?? getEffectivePasswordFor(record);
 
     try {
+      // 先请求后端生成短期 signed URL（避免把 Key 放到下载 URL）
       const res = await getFileDownloadUrl(record.id, effectivePassword);
 
       if (res.code !== 20000 || !res.data?.url) {
@@ -211,6 +230,7 @@ export function useFileExplorer(options = {}) {
         return;
       }
 
+      // 使用 <a> 触发浏览器下载（对文件夹会下载 zip）
       const url = res.data.url;
       const link = document.createElement('a');
       link.href = url;
@@ -252,6 +272,7 @@ export function useFileExplorer(options = {}) {
       return;
     }
 
+    // action=enter：用于“进入私有文件夹”，需要请求子列表验证 Key
     if (action === 'enter') {
       loading.value = true;
       readmeContent.value = '';
@@ -277,7 +298,7 @@ export function useFileExplorer(options = {}) {
       return;
     }
 
-    // download / preview
+    // action=download/preview：先用详情接口验证 Key，再触发下载/预览
     try {
       const res = await getFileDetail(record.id, password);
       if (res.code === 20000) {
@@ -300,6 +321,7 @@ export function useFileExplorer(options = {}) {
     }
   };
 
+  // 管理员：打开“公开/私有 Key”设置弹窗
   const openAccessSettings = (record) => {
     if (!isAdmin) return;
 
@@ -310,6 +332,7 @@ export function useFileExplorer(options = {}) {
     showAccessModal.value = true;
   };
 
+  // 管理员：关闭访问设置弹窗并重置状态
   const cancelAccessModal = () => {
     showAccessModal.value = false;
     accessTarget.value = null;
@@ -317,6 +340,7 @@ export function useFileExplorer(options = {}) {
     accessInitialIsPublic.value = true;
   };
 
+  // 管理员：保存访问设置（公开/私有 + 可选 Key）
   const handleAccessSave = async () => {
     if (!isAdmin || !accessTarget.value) return;
 
@@ -361,21 +385,25 @@ export function useFileExplorer(options = {}) {
     }
   };
 
+  // 进入文件夹：若为私有则尝试使用缓存 Key，否则弹出解锁弹窗
   const enterFolder = async (record) => {
     if (!record?.is_folder) return;
 
     if (isAdmin || activePathPassword.value) {
+      // 管理员/已解锁路径：直接进入
       breadcrumbs.value.push({ id: record.id, name: record.name });
       await fetchFiles(record.id);
       return;
     }
 
     if (!record.is_protected) {
+      // 公开文件夹：直接进入
       breadcrumbs.value.push({ id: record.id, name: record.name });
       await fetchFiles(record.id);
       return;
     }
 
+    // 私有文件夹：优先尝试用缓存 Key 自动进入
     const cachedPassword = passwordById.value?.[record.id];
     if (cachedPassword) {
       loading.value = true;

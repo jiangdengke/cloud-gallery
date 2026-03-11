@@ -26,6 +26,10 @@
 </template>
 
 <script setup>
+// 管理后台（前端业务代码）
+// - 依赖本地保存的 api_key（见 web/src/api/file.js）
+// - 退出时清空 api_key 并返回首页
+
 import { 
   CloudServerOutlined, 
   LogoutOutlined,
@@ -43,6 +47,7 @@ const router = useRouter();
 const goHome = () => router.push('/');
 
 const handleLogout = () => {
+  // 清理管理员 Key，回到游客模式
   setApiKey(null);
   message.success('已退出管理模式');
   router.push('/');

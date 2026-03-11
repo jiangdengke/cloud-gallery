@@ -4,6 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+// files 表：同时存储“文件/文件夹”（业务表）
 return new class extends Migration
 {
     /**

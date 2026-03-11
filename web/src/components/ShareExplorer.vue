@@ -77,6 +77,10 @@
 </template>
 
 <script setup>
+// 分享浏览器组件（前端业务代码）
+// - 用于分享页面中展示“被分享的文件夹”并支持目录导航/下载/图片预览
+// - 由于浏览器下载链接无法带自定义 Header，下载链接可能会拼接 ?password=
+
 import { ref, onMounted, computed, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import api from '../api/file';
@@ -92,14 +96,17 @@ import {
 import 'github-markdown-css/github-markdown.css';
 
 const props = defineProps({
+  // 分享 token（路由参数 /s/:token）
   token: {
     type: String,
     required: true
   },
+  // 分享提取码（6 位数字，可为空）
   password: {
     type: String,
     default: ''
   },
+  // 分享根目录 id/名称（由 Share.vue 的详情接口传入）
   rootId: {
     type: [Number, String],
     required: true
@@ -110,6 +117,7 @@ const props = defineProps({
   }
 });
 
+// Markdown 渲染器：用于展示 README.md
 const md = new MarkdownIt({ html: true, linkify: true, typographer: true });
 
 const loading = ref(false);
@@ -133,9 +141,11 @@ const fetchFiles = async (parentId) => {
   loading.value = true;
   readmeContent.value = '';
   try {
+    // 获取当前目录的子项列表（后端会校验 token/过期/提取码）
     const res = await getShareFiles(props.token, parentId, props.password);
     if (res.code === 20000) {
       files.value = res.data.list;
+      // 自动加载 README.md（如果存在）
       const readme = files.value.find(f => !f.is_folder && f.name?.toLowerCase() === 'readme.md');
       if (readme) {
         loadReadme(readme.id);
@@ -156,6 +166,7 @@ const loadReadme = async (id) => {
     const headers = {};
     if (props.password) headers['X-Share-Password'] = props.password;
 
+    // README 通过下载接口获取原始文本，关闭 axios 的 JSON 解析
     const content = await api.get(`/shares/${props.token}/download`, {
       params: {
         file_id: id,
@@ -167,6 +178,7 @@ const loadReadme = async (id) => {
 
     if (typeof content !== 'string') return;
 
+    // 兼容：如果后端返回 JSON 错误（文本形式），这里尝试解析并提示
     const trimmed = content.trim();
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
       try {
@@ -194,6 +206,7 @@ const closePreview = () => {
 
 const previewSrc = computed(() => {
   if (!previewFile.value) return '';
+  // 图片预览直接使用下载链接（浏览器会发起 GET /shares/{token}/download）
   return buildShareDownloadUrl(props.token, {
     fileId: previewFile.value.id,
     password: props.password || null
@@ -219,6 +232,7 @@ const isImage = (record) => {
 };
 
 const downloadFile = (record) => {
+  // 直接构建下载链接并触发 <a> 点击
   const url = buildShareDownloadUrl(props.token, {
     fileId: record.id,
     password: props.password || null
@@ -232,6 +246,7 @@ const downloadFile = (record) => {
 };
 
 const downloadCurrentFolder = () => {
+  // 下载当前面包屑所在目录（通常为 zip）
   const current = breadcrumbs.value[breadcrumbs.value.length - 1];
   if (!current) return;
   const url = buildShareDownloadUrl(props.token, {

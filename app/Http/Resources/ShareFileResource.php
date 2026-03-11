@@ -8,11 +8,14 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin File
+ *
+ * 分享列表中的文件项资源（业务代码）。
+ * 说明：不返回私有访问控制字段（分享侧按提取码统一保护）。
  */
 class ShareFileResource extends JsonResource
 {
     /**
-     * Transform the resource into an array.
+     * 转换为数组结构返回给前端。
      *
      * @return array<string, mixed>
      */
@@ -30,4 +33,3 @@ class ShareFileResource extends JsonResource
         ];
     }
 }
-

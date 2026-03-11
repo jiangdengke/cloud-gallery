@@ -7,6 +7,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin \App\Models\File
+ *
+ * 文件/文件夹资源格式化（业务代码）。
+ * - is_public / is_protected 用于前端展示与交互（是否需要 Key）
  */
 class FileResource extends JsonResource
 {
@@ -15,6 +18,7 @@ class FileResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // 公开的判定：is_public=true 且未设置 password_hash
         $isPublic = (bool) ($this->is_public && ($this->password_hash === null || $this->password_hash === ''));
 
         return [

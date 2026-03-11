@@ -8,16 +8,20 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin \App\Models\FileShare
+ *
+ * 分享详情资源（业务代码）。
+ * - 聚合分享记录与关联文件信息，供分享落地页渲染
  */
 class ShareDetailResource extends JsonResource
 {
     /**
-     * Transform the resource into an array.
+     * 转换为数组结构返回给前端。
      *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
+        // 关联的文件/文件夹（可能为空：例如目标被删除）
         /** @var File|null $file */
         $file = $this->file;
 

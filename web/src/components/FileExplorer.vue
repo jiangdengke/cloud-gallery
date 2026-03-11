@@ -291,6 +291,10 @@
 </template>
 
 <script setup>
+// 文件浏览器组件（前端业务代码）
+// - isAdmin=false：游客浏览模式（只读 + 私有 Key 解锁）
+// - isAdmin=true：管理模式（上传/移动/删除/访问设置/创建分享）
+
 import { ref, onMounted, computed } from 'vue';
 import { useFileExplorer } from '../composables/useFileExplorer';
 import { message } from 'ant-design-vue';
@@ -320,7 +324,7 @@ const props = defineProps({
   }
 });
 
-// --- 使用 Composable ---
+// --- 使用 Composable（大部分业务逻辑在 useFileExplorer 内） ---
 const {
   loading, files, breadcrumbs, readmeContent,
   showCreateFolderModal, newFolderName,
@@ -342,11 +346,14 @@ const {
 } = useFileExplorer({ isAdmin: props.isAdmin });
 
 // --- UI 独有状态 ---
+// 右键菜单（仅前端交互，不依赖后端）
 const contextMenu = ref({ visible: false, x: 0, y: 0, record: null });
+// 当前目录内搜索关键词（仅前端过滤）
 const searchKeyword = ref('');
 
 // 初始化
 onMounted(() => {
+  // 首次进入默认拉取根目录列表
   fetchFiles();
 });
 
@@ -369,6 +376,7 @@ const displayFiles = computed(() => {
   const keyword = (searchKeyword.value || '').toString().trim().toLowerCase();
   if (!keyword) return files.value;
 
+  // 在当前目录内做简单模糊匹配
   return files.value.filter((file) => (file?.name || '').toString().toLowerCase().includes(keyword));
 });
 
@@ -379,6 +387,7 @@ const canDownloadCurrentFolder = computed(() => {
 });
 
 const downloadCurrentFolder = async () => {
+  // “下载当前文件夹”本质上是触发对当前目录节点的下载（后端会打包 zip）
   const current = currentBreadcrumb.value;
   if (!current || current.id === null || current.id === undefined) {
     message.warning('根目录不支持打包下载');
@@ -395,6 +404,7 @@ const downloadCurrentFolder = async () => {
 };
 
 const refresh = () => {
+  // 刷新当前目录
   const id = currentBreadcrumb.value?.id ?? null;
   fetchFiles(id);
 };
@@ -438,6 +448,7 @@ const customRow = (record) => {
     onClick: () => handleRowClick(record),
     onContextmenu: (e) => {
       e.preventDefault();
+      // 在鼠标位置显示右键菜单
       contextMenu.value = {
         visible: true,
         x: e.clientX,

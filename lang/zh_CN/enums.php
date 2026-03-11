@@ -2,6 +2,9 @@
 
 use App\Enums\ResponseCodeEnum;
 use Jiannei\Enum\Laravel\Support\Enums\HttpStatusCode;
+
+// 业务码中文文案（业务代码）。
+// 说明：jiannei/laravel-enum 会按 `enums.{EnumClass}.{value}` 的 key 读取 message。
 return [
     // 必须使用类名作为 Key，这样 laravel-enum 才能自动找到
     ResponseCodeEnum::class => [

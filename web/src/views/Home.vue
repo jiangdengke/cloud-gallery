@@ -31,6 +31,10 @@
 </template>
 
 <script setup>
+// 首页（前端业务代码）
+// - 默认游客模式浏览文件
+// - 通过“管理登录”输入 API Key 后进入 /admin
+
 import { ref } from 'vue';
 import { 
   CloudServerOutlined, 
@@ -51,6 +55,7 @@ const apiKeyInput = ref('');
 const goHome = () => router.push('/');
 
 const handleLogin = () => {
+  // 简单校验：非空即可（后端会再校验 key 是否正确）
   if (!apiKeyInput.value) return;
   setApiKey(apiKeyInput.value);
   message.success('登录成功');

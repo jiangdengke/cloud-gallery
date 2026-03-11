@@ -3,24 +3,34 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FileController;
-// 这是一个测试接口
+
+/**
+ * API 路由（业务代码）。
+ *
+ * 约定：
+ * - 公开接口：不需要管理员 API Key（但访问私有资源可能需要 6 位数字 Key）
+ * - 管理接口：统一走 auth.key 中间件（Header: X-Api-Key）
+ */
+
+// 健康检查/联通性测试
 Route::get('/ping', function () {
     return response()->json(['message' => 'pong']);
 });
 
-/**
- * 不需要key
- */
-
-// 公开接口 (不需要 auth.key)
-// 首页列表 / 进入文件夹
+// ---------------------------
+// 公开接口（不需要 auth.key）
+// ---------------------------
 Route::get('/files', [FileController::class, 'index']);
 Route::get('/files/{id}', [FileController::class, 'detail']); // 文件详情
-Route::get('/files/{id}/download', [FileController::class, 'download']); // 下载文件
-Route::post('/files/{id}/download-url', [FileController::class, 'downloadUrl']); // 获取短期下载链接（避免 Key 暴露在 URL）
+Route::get('/files/{id}/download', [FileController::class, 'download']); // 直接下载入口（兼容）
+
+// 两段式下载：先拿短期签名 URL，再跳转下载（避免 Key 暴露在 URL）
+Route::post('/files/{id}/download-url', [FileController::class, 'downloadUrl']);
 Route::get('/files/{id}/download-signed', [FileController::class, 'signedDownload'])
     ->middleware(\Illuminate\Routing\Middleware\ValidateSignature::class)
     ->name('files.download.signed'); // 真实下载入口（签名校验）
+
+// 分享：游客可访问（可选提取码）
 Route::prefix('shares')->group(function () {
     // 查看信息
     Route::get('/{token}', [\App\Http\Controllers\ShareController::class, 'detail']);
@@ -30,9 +40,9 @@ Route::prefix('shares')->group(function () {
     Route::get('/{token}/files', [\App\Http\Controllers\ShareController::class, 'fileList']); // 游客查看文件夹列表
 });
 
-/**
- * 需要key
- */
+// ---------------------------
+// 管理接口（需要 auth.key）
+// ---------------------------
 Route::middleware(['auth.key'])->group(function () {
 
     // 文件夹相关
@@ -50,7 +60,7 @@ Route::middleware(['auth.key'])->group(function () {
     });
 
 
-
+    // 分享管理
     Route::post('/shares/create', [\App\Http\Controllers\ShareController::class, 'create']);
     Route::delete('/shares/{id}', [\App\Http\Controllers\ShareController::class, 'destroy']);
 });
